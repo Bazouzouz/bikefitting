@@ -1,0 +1,180 @@
+/* ==========================================================================
+   Atelier unique : en-tête fin, scène collante + colonne de phase (prototype fit-atelier).
+   Dépend de tokens.css, ui.css et app.css ; les surcharges des styles globaux sont limitées à .ws-rail.
+   ========================================================================== */
+
+.ws { --ws-header-h: 56px; --ws-rail-w: 380px; --ws-gap: 16px; min-height: 100vh; }
+
+/* --------------------------------------------------------------------------
+   En-tête fin
+   -------------------------------------------------------------------------- */
+.ws-header {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 6px 24px; flex-wrap: wrap;
+  min-height: var(--ws-header-h);
+  padding: 8px var(--gutter);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-strong);
+}
+.ws-brand { margin: 0; font-size: 1.375rem; letter-spacing: 0.04em; flex: none; }
+.ws-summary {
+  margin: 0; flex: 1 1 200px; min-width: 0;
+  font-family: var(--f-mono); font-size: 0.8125rem; color: var(--muted); /* 8.1:1 sur --bg */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ws-progress { display: flex; align-items: center; gap: 14px; flex: none; }
+.ws-progress .progress { gap: 12px; }
+/* Pastille cliquable : zone de clic 28 px autour du point de 10 px */
+.ws-progress .progress > li { position: relative; }
+.ws-progress .progress button {
+  position: absolute; inset: -9px; padding: 0; margin: 0;
+  border: 0; border-radius: 50%; background: transparent; cursor: pointer;
+}
+.ws-progress .progress button:disabled { cursor: default; }
+.ws-progress .progress button:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.ws-progress .progress > li.done:has(button:not(:disabled)):hover { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.35); }
+.ws-count {
+  font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ws-count-label { margin-left: 8px; text-transform: uppercase; color: var(--muted); }
+
+/* --------------------------------------------------------------------------
+   Scène + colonne
+   -------------------------------------------------------------------------- */
+.ws-main {
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--ws-rail-w);
+  gap: var(--ws-gap); align-items: start;
+  max-width: 1600px; margin: 0 auto;
+  /* fond = --ws-gap : en bas de page, la scène collante tient encore entière sous l'en-tête */
+  padding: var(--ws-gap) var(--gutter);
+}
+
+.ws-stage {
+  position: sticky; top: calc(var(--ws-header-h) + var(--ws-gap));
+  align-self: start; min-width: 0;
+  display: flex; flex-direction: column;
+  height: calc(100vh - var(--ws-header-h) - 2 * var(--ws-gap));
+  height: calc(100dvh - var(--ws-header-h) - 2 * var(--ws-gap));
+  min-height: 360px;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.ws-stage-tools {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+  padding: 10px 10px 0;
+}
+.ws-stage-tools .seg { background: var(--bg-2); }
+.ws-stage-view { flex: 1 1 auto; min-height: 0; display: flex; position: relative; }
+/* La scène remplit l'espace ; le SVG garde son ratio (letterbox via viewBox). */
+.ws-stage-view > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.ws-stage-view > svg, .ws-stage-view > * > svg { display: block; width: 100%; height: 100%; }
+
+.ws-stage-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  margin: 16px; padding: 24px; text-align: center;
+  border: 1.5px dashed var(--line-strong); border-radius: var(--radius-sm);
+  background-image:
+    linear-gradient(var(--bp-grid-minor) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid-minor) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.ws-stage-empty p { margin: 0; }
+.ws-stage-empty-title {
+  font-family: var(--f-display); font-weight: 700; text-transform: uppercase;
+  font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem); line-height: 1; color: var(--bp-dim); /* 13:1 sur --paper */
+}
+.ws-stage-empty-text { max-width: 36ch; color: var(--muted); font-size: 0.875rem; }
+
+/* --------------------------------------------------------------------------
+   Colonne de phase (surcharges locales des styles globaux de app.css)
+   -------------------------------------------------------------------------- */
+.ws-rail {
+  min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md);
+  padding: 20px;
+}
+.ws-phase { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ws-phase-head { display: flex; flex-direction: column; gap: 4px; }
+.ws-phase-head .eyebrow { margin: 0; color: var(--accent-text); } /* 5:1 sur --panel */
+.ws-rail h2 { font-size: 1.75rem; line-height: 1.05; margin: 0; }
+.ws-phase-title:focus { outline: none; }
+.ws-phase-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.ws-rail h3 { font-size: 1.0625rem; margin: 10px 0 0; }
+.ws-rail p { margin: 0; }
+.ws-lede { color: var(--ink-2); font-size: 0.9375rem; }
+.ws-rail .note { margin-top: 0; }
+.ws-rail .hint { margin-top: 0; font-size: 0.8125rem; }
+.ws-rail .warnings, .ws-rail .warnings-inline { margin: 0; }
+.ws-rail .row input { flex: 1 1 160px; min-width: 0; }
+.ws-rail details { margin: 0 0 6px; }
+.ws-rail .aids { margin: 0; }
+.ws-rail .measure-guide { background: var(--bg-2); }
+.ws-rail .rider-figure svg { max-width: 260px; }
+
+/* Saisie manuelle dans la colonne : carte aplatie */
+.ws-rail .manual-form { margin-top: 0; padding: 14px; box-shadow: none; background: var(--bg-2); border-radius: var(--radius-sm); }
+.ws-rail .manual-form .grid-2, .ws-rail .manual-form .grid-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 12px; }
+
+/* Champs de morphologie : 2 colonnes dans la colonne de 380 px */
+.ws-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 12px 14px; }
+.ws-fields-wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+
+/* Fiche vélo résumée (le dessin est sur la scène) */
+.ws-bike {
+  display: flex; flex-direction: column; gap: 10px;
+  border-top: 2px solid var(--accent); padding-top: 12px;
+}
+.ws-bike-name { font-family: var(--f-display); font-weight: 700; font-size: 1.5rem; text-transform: uppercase; line-height: 1.05; }
+
+/* Tailles */
+.ws-rail .size-picker { grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 10px; margin: 0; }
+.ws-rail .size-chip { padding: 12px 14px; gap: 6px; box-shadow: none; background: var(--bg-2); }
+.ws-rail .size-chip.selected { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* Tableau d'écarts compact (la colonne est étroite quelle que soit la fenêtre) */
+.ws-rail .delta-table { font-size: 0.8125rem; box-shadow: none; border-radius: var(--radius-sm); background: var(--bg-2); }
+.ws-rail .delta-table th, .ws-rail .delta-table td { padding: 9px 5px; }
+.ws-rail .delta-table th:first-child, .ws-rail .delta-table td:first-child { padding-left: 10px; }
+.ws-rail .delta-table th:last-child, .ws-rail .delta-table td:last-child { padding-right: 10px; }
+.ws-rail .delta-table thead th { font-size: 0.6875rem; letter-spacing: 0.03em; }
+.ws-rail .delta-table .badge { display: none; }
+
+/* Réglages : emplacement des parcours guidés + curseurs */
+.ws-slot {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-sm);
+  color: var(--muted); font-size: 0.875rem;
+}
+.ws-sliders { display: flex; flex-direction: column; gap: 2px; }
+.ws-sliders .slider { margin-bottom: 10px; }
+.ws-sliders .slider-head label { display: inline; color: var(--ink-2); font-size: 0.875rem; font-weight: 500; }
+.ws-sliders .btn { align-self: flex-start; }
+
+/* Navigation de phase */
+.ws-nav {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.ws-next-hint { flex: 1 0 100%; text-align: right; color: var(--muted); font-size: 0.8125rem; }
+
+/* --------------------------------------------------------------------------
+   Mobile < 900 px : scène collante en haut, panneau dessous
+   -------------------------------------------------------------------------- */
+@media (max-width: 899px) {
+  .ws-header { position: static; }
+  .ws-progress { width: 100%; justify-content: space-between; }
+  .ws-main { grid-template-columns: minmax(0, 1fr); padding-top: 0; gap: 12px; }
+  .ws-stage {
+    top: 0; z-index: 10;
+    height: 42vh; height: 42svh; min-height: 240px;
+    margin-inline: calc(-1 * var(--gutter));
+    border-radius: 0; border-inline: 0; border-top: 0;
+  }
+  .ws-stage-tools { padding: 8px var(--gutter) 0; }
+  .ws-stage-tools .seg button { min-height: 30px; padding: 4px 12px; font-size: 0.8125rem; }
+  .ws-stage-empty { margin: 10px var(--gutter); padding: 16px; }
+  .ws-rail { padding: 16px; }
+}

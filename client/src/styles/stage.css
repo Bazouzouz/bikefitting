@@ -1,0 +1,96 @@
+/* --------------------------------------------------------------------------
+   Scène blueprint de l'atelier (Stage)
+   Le ratio du <svg> est celui de la carte (mesuré, --stage-ratio, borné 1 à 2,4) : le plan remplit la carte et
+   ne varie pas au changement de taille, de vue ou de phase.
+   -------------------------------------------------------------------------- */
+/* .stage remplit la carte (taille fixée par workspace.css) ; .stage-box y est inscrite au ratio mesuré de la carte
+   (--stage-ratio, posé par Stage) et centrée : elle la remplit, sans vide ni rognage (390×844, 768×1024, 1280×800,
+   1280×600) ; seul un ratio hors bornes laisse une marge. Le <svg> n'étant plus enfant direct de .stage, la règle
+   height:100% de workspace.css (.ws-stage-view > * > svg) ne s'applique plus. */
+.stage { --stage-ratio: 4 / 3; position: relative; min-width: 0; container-type: size; display: grid; place-items: center; }
+.stage-box { position: relative; width: min(100cqw, 100cqh * var(--stage-ratio)); aspect-ratio: var(--stage-ratio); }
+.stage-box > svg.blueprint { display: block; width: 100%; height: auto; }
+
+/* --------------------------------------------------------------------------
+   Caméra (phase Réglages) : hotspots, estompage, retour à la vue d'ensemble
+   -------------------------------------------------------------------------- */
+/* Calque des hotspots, en pixels, posé exactement sur le plan ; seuls les hotspots captent le pointeur. */
+.stage-hud { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+/* Après un dézoom : apparition une fois la caméra revenue, sauf le hotspot qui reprend le focus (visible tout de suite). */
+.stage-hud-late .stage-hot:not(:focus) { animation: stage-fade 250ms var(--ease) 850ms both; }
+/* Tant qu'ils sont invisibles : ni clic ni survol (le clavier et l'accessibilité sont coupés par Stage). */
+.stage-hot.is-asleep { pointer-events: none; }
+.stage-hot { pointer-events: all; cursor: pointer; outline: none; }
+.stage-hot .hit, .stage-hot .hit-area { fill: transparent; }
+.stage-hot .ring {
+  fill: none; stroke: var(--bp-dim); stroke-width: 2;
+  transform-box: fill-box; transform-origin: center;
+  animation: stage-pulse 2.2s ease-out infinite;
+}
+.stage-hot .dot { fill: var(--bp-dim); stroke: var(--paper); stroke-width: 2; }
+.stage-hot text {
+  fill: var(--bp-dim); /* 13:1 sur --paper */
+  font-family: var(--f-display); font-weight: 700; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
+  paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round;
+}
+.stage-hot:hover .dot { fill: var(--accent); }
+.stage-hot:focus-visible .hit { fill: rgba(var(--accent-rgb), 0.18); stroke: var(--accent); stroke-width: 2; }
+@keyframes stage-pulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+
+/* Zoom : cadre et roues estompés (250 ms), la pièce cadrée reste pleine. */
+.stage .bp-frame { transition: opacity 250ms var(--ease); }
+.stage[data-focus="saddle"] .bp-frame,
+.stage[data-focus="cockpit"] .bp-frame { opacity: 0.22; }
+/* Le cycliste recouvre selle et cockpit : en retrait pendant le zoom (fondu d'apparition en fill backwards,
+   pour ne pas figer son opacité). */
+.stage .rider { transition: opacity 250ms var(--ease); }
+.stage[data-focus="saddle"] .rider,
+.stage[data-focus="cockpit"] .rider { opacity: 0.5; }
+
+/* Vue de dessus zoomée : comme dimIds en vue de côté, seulement les cotes de la pièce cadrée.
+   TopDimsLayer pose data-id sur chaque trait de cote et data-label sur chaque libellé (ids : bar, stem, setback, crank).
+   Cockpit : Cintre et Potence ; selle : Recul (selle fantôme orange tracée par TopView). */
+.stage-top[data-focus="cockpit"] .dim-lines > [data-id]:not([data-id="bar"], [data-id="stem"]),
+.stage-top[data-focus="cockpit"] .dim-label:not([data-label="bar"], [data-label="stem"]),
+.stage-top[data-focus="saddle"] .dim-lines > [data-id]:not([data-id="setback"]),
+.stage-top[data-focus="saddle"] .dim-label:not([data-label="setback"]) { display: none; }
+
+/* Parcours selle guidé (vue de côté) : selle actuelle et fantôme redessinés par le calque SaddleDims
+   (inclinaison, pointe du fantôme = fit.saddlePosition) ; ceux du plan s'effacent pour ne pas doubler. */
+.stage[data-guide="saddle"] .bp-stock .bp-saddle,
+.stage[data-guide="saddle"] .bp-phantom .bp-saddle { display: none; }
+.blueprint .sd .sd-plumb { stroke: var(--bp-dim-line); stroke-width: 1; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; }
+.blueprint .sd .sd-level { stroke: var(--bp-dim-line); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; vector-effect: non-scaling-stroke; }
+.blueprint .sd .sd-tilt { stroke: var(--bp-active); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.blueprint .sd .sd-tick { stroke: var(--ghost); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.blueprint .sd .bp-stock .part { stroke: var(--bp-active); }
+
+/* En bas à droite : le coin haut-gauche porte la note du plan. */
+.stage-back { position: absolute; bottom: 8px; right: 8px; z-index: 1; min-height: 44px; }
+
+/* Tracé du cadre à l'arrivée d'un nouveau vélo : 900 ms, easeOutCubic.
+   Les éléments animés portent data-trace ; --len = leur longueur à l'écran (px), posée par useTraceLengths. */
+.bp-trace [data-trace] {
+  stroke-dasharray: var(--len, 0) var(--len, 0);
+  stroke-dashoffset: var(--len, 0);
+  animation: bp-trace 900ms cubic-bezier(0.33, 1, 0.68, 1) forwards;
+}
+.bp-trace .tyre,
+.bp-trace .ground,
+.bp-trace .dashed { opacity: 0; animation: bp-fade 900ms cubic-bezier(0.33, 1, 0.68, 1) 300ms forwards; }
+@keyframes bp-trace { to { stroke-dashoffset: 0; } }
+@keyframes bp-fade { to { opacity: 1; } }
+
+/* Cycliste : apparition en fondu (250 ms, --ease). */
+.blueprint .stage-fade-in { animation: stage-fade 250ms var(--ease) backwards; }
+@keyframes stage-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Mouvement réduit : état final direct. */
+@media (prefers-reduced-motion: reduce) {
+  .bp-trace [data-trace] { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; }
+  .bp-trace .tyre, .bp-trace .ground, .bp-trace .dashed { animation: none; opacity: 1; }
+  .blueprint .stage-fade-in { animation: none; }
+  .stage-hot .ring { animation: none; opacity: 0.6; }
+  .stage-hud-late .stage-hot:not(:focus) { animation: none; }
+  .stage .bp-frame, .stage .rider { transition: none; }
+}

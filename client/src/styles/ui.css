@@ -1,0 +1,76 @@
+/* ==========================================================================
+   Composants de base « blueprint » (issus du prototype fit-atelier)
+   Dépend de tokens.css. La mise en page des écrans est dans app.css.
+   ========================================================================== */
+
+/* Titres : Barlow Condensed, majuscules */
+h1, h2 { font-family: var(--f-display); text-transform: uppercase; font-weight: 700; }
+h1 { letter-spacing: 0.01em; line-height: 1; }
+h2 { letter-spacing: 0.01em; }
+
+/* Surtitre mono */
+.eyebrow {
+  font-family: var(--f-mono); font-size: 0.6875rem; font-weight: 400;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); /* 6.4:1 sur --panel */
+}
+
+/* Boutons */
+.btn.ghost { background: transparent; border-color: var(--line-strong); color: var(--ink); }
+
+/* Champ (étiquette mono + contrôle) */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > label, .field > .label {
+  font-family: var(--f-mono); font-size: 0.6875rem; font-weight: 400;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.field input[type='number'] { font-family: var(--f-mono); }
+
+/* Puce / chip */
+.chip {
+  display: inline-block; font-family: var(--f-mono); font-size: 0.75rem;
+  border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 9px; color: var(--muted);
+}
+.tool { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Lecture actuel / cible */
+.readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cell { border-top: 2px solid var(--line-strong); padding-top: 6px; min-width: 0; }
+.cell .v { font-family: var(--f-mono); font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.2; color: var(--ink); }
+.cell.t, .cell.target { border-color: var(--accent); }
+.cell.t .v, .cell.target .v { color: var(--accent-text); } /* 5:1 sur --panel */
+
+/* Écart restant */
+.delta { font-family: var(--f-display); font-weight: 700; font-size: 1.625rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.delta.ok { color: var(--ok-ink); }
+/* La cellule d'un tableau d'écarts garde la police du tableau */
+td.delta, .delta-table .delta { font-family: inherit; font-size: inherit; text-transform: none; letter-spacing: inherit; }
+
+/* Note : filet à gauche */
+.note {
+  font-size: 0.8125rem; color: var(--muted); line-height: 1.5;
+  border-left: 2px solid var(--accent); padding-left: 10px; margin-top: 12px;
+}
+
+/* Curseur */
+.slider { display: flex; flex-direction: column; gap: 4px; }
+.slider .slider-val { font-family: var(--f-mono); color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Progression : points d'avancement */
+.progress { display: flex; align-items: center; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.progress > * {
+  width: 10px; height: 10px; border-radius: 50%; flex: none;
+  border: 1.5px solid var(--muted); background: transparent; /* trait ≥ 3:1 */
+  transition: background var(--dur-ui) var(--ease), border-color var(--dur-ui) var(--ease);
+}
+.progress > .on { border-color: var(--accent); background: var(--accent); }
+.progress > .done { border-color: var(--ok-ink); background: var(--ok-ink); }
+
+/* Focus visible 2px accent */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+/* Texte réservé aux lecteurs d'écran (région d'annonce de Rail). */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

@@ -1,0 +1,81 @@
+/* ==========================================================================
+   Jetons de design — thème sombre « blueprint » (palette chaude, crème, orange)
+   Contrastes annotés : texte ≥ 4,5:1, traits/éléments graphiques ≥ 3:1.
+   Le vert (--ok-*) est réservé à l'état « réglé » ; la cible/fantôme est ORANGE.
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+
+  /* Fonds & surfaces */
+  --bg: #1f1e1d;
+  --bg-2: #262624;
+  --panel: #30302e;
+  --panel-2: #3a3936;
+  --field: #262624;
+  --line: rgba(250, 249, 245, 0.08);
+  --line-strong: rgba(250, 249, 245, 0.16);
+
+  /* Texte (AA vérifié sur --bg et --panel) */
+  --ink: #faf9f5;          /* 16:1 / 12.5:1 */
+  --ink-2: #e6e3da;
+  --muted: #b8b5a9;        /* 8.1:1 / 6.4:1 */
+
+  /* Accent (cible, fantôme, focus) */
+  --accent: #d97757;       /* 5.3:1 sur --bg, 4.9:1 sur --paper ; traits ≥ 3:1 ; fond bouton (texte --on-accent 5.3:1) */
+  --accent-text: #e08a6c;  /* texte/liens : 6.4:1 sur --bg, 5:1 sur --panel */
+  --on-accent: #1f1e1d;
+  --accent-rgb: 217, 119, 87;
+
+  /* États : le vert ne sert que pour « réglé » */
+  --green: #4cbf86;        /* trait vert (état réglé) : 7:1 sur --paper */
+  --green-dim: #6fcf9b;    /* texte vert : 8:1 sur --paper, 7:1 sur --panel */
+  --green-rgb: 76, 191, 134;
+  --ok-bg: #213a2c;
+  --ok-ink: #8ad9ad;       /* 8.6:1 sur --ok-bg, 9:1 sur --bg */
+  --off-bg: #4a2533;       /* « à corriger » : rose froid, distinct de l'orange */
+  --off-ink: #f5a3b8;      /* 6.6:1 sur --off-bg */
+  --warn: #ecc979;
+  --warn-bg: #3b3424;
+  --warn-line: #57492c;
+  --err: #ff9b8f;          /* 8:1 sur --bg */
+
+  /* Fantôme / cible dans les plans : orange */
+  --ghost: var(--accent);          /* traits : 4.9:1 sur --paper (≥ 3:1) */
+  --ghost-dim: var(--accent-text); /* cotes de la cible : texte 5.5:1 sur --paper */
+  --ghost-rgb: var(--accent-rgb);
+
+  /* Plans SVG « blueprint » */
+  --paper: #262624;
+  --bp-grid-minor: rgba(250, 249, 245, 0.06); /* grille fine : décor, non porteuse d'information */
+  --bp-grid-major: rgba(250, 249, 245, 0.12); /* grille forte */
+  --stock: #9c978b;        /* vélo d'origine : 5.4:1 sur --paper */
+  --bp-stock-fill: #3a3936;
+  --bp-ground: #8a867b;    /* sol : ≥ 3:1 sur --paper */
+  --bp-frame: #cfcabd;     /* cadre : 9:1 sur --paper */
+  --bp-active: #faf9f5;    /* élément actif : 14:1 sur --paper */
+  --bp-dim: #f3f0e8;       /* cotes et textes : 13:1 */
+  --bp-dim-line: #cfcabd;  /* traits de cote : 9:1 */
+  --bp-rider: #e9e4d6;
+  --bp-angle: #ec9a7c;     /* repères d'angle : 6.6:1 sur --paper */
+
+  /* Forme & mouvement */
+  --radius: 20px;
+  --radius-md: 16px;
+  --radius-sm: 14px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.22), 0 10px 30px rgba(0, 0, 0, 0.16);
+  --gutter: 16px;
+  --container: 1120px;
+  --header-h: 64px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur: 0.28s;
+  --dur-ui: 250ms;
+
+  /* Typographie */
+  --f-display: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  --f-body: 'IBM Plex Sans', -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font: var(--f-body);
+}
+
+@media (min-width: 720px) { :root { --gutter: 24px; } }
+@media (min-width: 1100px) { :root { --gutter: 32px; } }

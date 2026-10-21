@@ -1,0 +1,104 @@
+/* --------------------------------------------------------------------------
+   Vue éclatée axonométrique (Exploded : SaddleExploded, CockpitExploded) — style blueprint.
+   Faces en aplats à 3 valeurs (dessus clair / moyen / sombre) qui portent le volume ;
+   arêtes intérieures fines, silhouette de chaque pièce plus épaisse, arêtes cachées
+   en pointillés fins et discrets ; pièce clé en orange plein, autres en gris chaud.
+   Ouverture : 700 ms (--ease), pièces décalées de 40 ms (suivre OPEN_MS / STAGGER_MS).
+   -------------------------------------------------------------------------- */
+.xp {
+  /* Gris chauds : l2 reste détaché de --paper (#262624), l0 franchement clair. */
+  --xp-l0: #8a857a;
+  --xp-l1: #5f5c55;
+  --xp-l2: #403e3a;
+  --xp-k0: #f2b49b;
+  --xp-k1: var(--accent);
+  --xp-k2: #a8553a;
+  --xp-k-edge: #2a1d17;
+  margin: 0;
+  width: 100%;
+  max-width: 540px;
+  min-width: 0;
+}
+
+.xp-stage {
+  position: relative;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  cursor: grab;
+  touch-action: pan-y; /* défilement vertical conservé, glisser horizontal = rotation */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.xp.is-rotating .xp-stage { cursor: grabbing; }
+.xp-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.xp-svg { display: block; width: 100%; height: auto; }
+
+/* Ouverture : translation par pièce (vecteur projeté de l'écart le long de l'axe de la tige). */
+.xp-part {
+  transition: transform 700ms var(--ease);
+  transition-delay: calc(var(--i, 0) * 40ms);
+}
+.xp.is-rotating .xp-part { transition: none; }
+
+/* Faces : aplats, trait de la couleur de l'aplat pour masquer les jointures de facettes. */
+.xp-f { stroke-width: 0.6; stroke-linejoin: round; }
+.xp-f.l0 { fill: var(--xp-l0); stroke: var(--xp-l0); }
+.xp-f.l1 { fill: var(--xp-l1); stroke: var(--xp-l1); }
+.xp-f.l2 { fill: var(--xp-l2); stroke: var(--xp-l2); }
+.is-key .xp-f.l0 { fill: var(--xp-k0); stroke: var(--xp-k0); }
+.is-key .xp-f.l1 { fill: var(--xp-k1); stroke: var(--xp-k1); }
+.is-key .xp-f.l2 { fill: var(--xp-k2); stroke: var(--xp-k2); }
+
+/* Arêtes vives intérieures (fines) et silhouettes (contour plus épais). */
+.xp-e { fill: none; stroke: var(--bp-frame); stroke-width: 0.6; stroke-opacity: 0.5; stroke-linecap: round; stroke-linejoin: round; }
+.xp-o { fill: none; stroke: var(--bp-frame); stroke-width: 1.3; stroke-opacity: 0.85; stroke-linecap: round; stroke-linejoin: round; }
+.is-key .xp-e { stroke: var(--xp-k-edge); stroke-opacity: 0.55; }
+.is-key .xp-o { stroke: var(--xp-k-edge); stroke-width: 1.2; stroke-opacity: 0.9; }
+
+/* Graduations, repères gravés. */
+.xp-m { fill: none; stroke: var(--bp-dim); stroke-width: 0.6; stroke-opacity: 0.8; }
+.xp-m.is-key { stroke: var(--xp-k-edge); }
+
+/* Arêtes cachées : pointillés fins et discrets. */
+.xp-h { fill: none; stroke: var(--bp-frame); stroke-width: 0.45; stroke-dasharray: 1.4 2.2; stroke-opacity: 0.28; }
+.xp-h.is-key { stroke: var(--xp-k-edge); stroke-opacity: 0.45; }
+
+/* Flèche de geste (sens de serrage). */
+.xp-arc { fill: none; stroke: var(--accent-text); stroke-width: 2.4; stroke-linecap: round; }
+.xp-arrow { fill: var(--accent-text); }
+.xp-gesture { pointer-events: none; }
+
+/* Lignes de rappel et libellés (Plex Mono, colonne). */
+/* Détourage couleur papier sous chaque ligne de rappel : traversée nette des pièces. */
+.xp-lead-case { fill: none; stroke: var(--paper); stroke-width: 2.6; stroke-linejoin: round; }
+.xp-lead { fill: none; stroke: var(--bp-dim-line); stroke-width: 0.6; stroke-opacity: 0.55; }
+.xp-lead.is-key { stroke: var(--accent-text); stroke-opacity: 1; stroke-width: 0.9; }
+.xp-dot { fill: var(--bp-dim-line); opacity: 0.8; }
+.xp-dot.is-key { fill: var(--accent-text); opacity: 1; }
+.xp-leaders { animation: xp-fade 250ms var(--ease) both; animation-delay: var(--delay, 0ms); }
+@keyframes xp-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.xp-lbl { font-family: var(--f-mono); font-weight: 400; fill: var(--muted); } /* 6.4:1 sur --paper */
+.xp-lbl.is-key { fill: var(--accent-text); font-weight: 500; }
+.xp-lbl .xp-note { fill: var(--bp-dim); font-weight: 400; }
+
+/* Barre de rotation. */
+.xp-bar { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.xp-btn {
+  min-width: 44px; min-height: 36px; padding: 0 10px;
+  border-radius: 999px; border: 1px solid var(--line-strong);
+  background: transparent; color: var(--ink);
+  font-family: var(--f-mono); font-size: 0.9375rem; cursor: pointer;
+}
+.xp-btn:hover:not(:disabled) { border-color: var(--accent); }
+.xp-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.xp-btn:disabled { opacity: 0.4; cursor: default; }
+.xp-reset { font-size: 0.75rem; letter-spacing: 0.06em; }
+.xp-az { margin-left: auto; font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Mouvement réduit : état final direct. */
+@media (prefers-reduced-motion: reduce) {
+  .xp-part { transition: none; }
+  .xp-leaders { animation: none; }
+}

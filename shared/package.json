@@ -1,0 +1,13 @@
+{
+  "name": "@bikefit/shared",
+  "version": "0.0.0",
+  "private": true,
+  "main": "bike.ts",
+  "types": "bike.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}

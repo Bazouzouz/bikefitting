@@ -1,0 +1,80 @@
+/* --------------------------------------------------------------------------
+   Cockpit guidé en 3 temps (panneau de la phase Réglages, zoom cockpit) et son calque de scène.
+   Même vocabulaire que saddle.css (récapitulatif, titre, readout, écart, curseur + saisie).
+   Dépend de tokens.css et ui.css (.readout, .cell, .delta, .chip, .tool, .note, .slider).
+   -------------------------------------------------------------------------- */
+.cockpit-guide { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cockpit-guide .eyebrow { margin: 0; }
+.cockpit-guide p { margin: 0; }
+
+/* Récapitulatif des 3 temps : cliquable, temps en cours souligné orange, temps réglé en vert. */
+.cg-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; }
+.cg-step {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 6px; align-items: baseline;
+  width: 100%; min-width: 0; min-height: 48px; padding: 6px 8px; text-align: left; cursor: pointer;
+  background: var(--bg-2); color: var(--ink); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-sm);
+  font: inherit;
+}
+.cg-step:hover { border-color: var(--line-strong); }
+.cg-step[aria-current="step"] { border-bottom-color: var(--accent); }
+.cg-step-n { grid-row: 1 / 3; font-family: var(--f-display); font-weight: 700; font-size: 1.25rem; color: var(--muted); }
+.cg-step[aria-current="step"] .cg-step-n { color: var(--accent-text); }
+.cg-step-l { font-size: 0.8125rem; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cg-step-s {
+  font-family: var(--f-mono); font-size: 0.6875rem; color: var(--muted); font-variant-numeric: tabular-nums;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cg-step.is-done .cg-step-s { color: var(--ok-ink); }
+
+.cg-title { margin: 4px 0 0; font-family: var(--f-display); font-size: 1.375rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.cg-title:focus { outline: none; }
+.cg-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+
+.cg-line { display: flex; flex-direction: column; gap: 6px; }
+.cg-line-l { font-size: 0.8125rem; font-weight: 600; color: var(--ink-2); }
+.cg-readout .cell .eyebrow { margin-bottom: 2px; }
+/* Écart en mono, comme la colonne « Écart » de DeltaTable */
+.cg-gap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.cg-gap-v { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ghost-dim); font-weight: 600; }
+.cg-gap-v.ok { color: var(--ok-ink); }
+.cg-tol { font-size: 0.8125rem; color: var(--muted); }
+.cockpit-guide .delta { font-size: 1.375rem; }
+
+.cg-how ol { margin: 0 0 8px; padding-left: 20px; font-size: 0.875rem; color: var(--ink-2); }
+.cg-how li + li { margin-top: 2px; }
+.cg-coupled { font-family: var(--f-mono); font-size: 0.8125rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cg-coupled.ok { color: var(--ok-ink); }
+
+.cg-why summary { cursor: pointer; font-size: 0.8125rem; color: var(--ink-2); min-height: 32px; display: flex; align-items: center; }
+.cg-why p { font-size: 0.8125rem; color: var(--muted); line-height: 1.5; }
+
+/* Curseur + saisie numérique */
+.cg-control { margin: 0; }
+.cg-control .slider-head label { color: var(--ink-2); font-size: 0.875rem; font-weight: 500; }
+.cg-inputs { display: flex; align-items: center; gap: 10px; }
+.cg-inputs input[type='range'] { flex: 1 1 auto; min-width: 0; }
+.cg-num { display: inline-flex; align-items: center; gap: 4px; flex: none; font-family: var(--f-mono); font-size: 0.8125rem; color: var(--muted); }
+.cg-num input { width: 5.5em; min-height: 44px; font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.cg-above { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.cg-above label { color: var(--ink-2); font-size: 0.875rem; }
+
+.cg-row, .cg-nav, .cg-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cg-nav { justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--line); }
+.cockpit-guide .btn.small { min-height: 44px; }
+.cg-save .hint { flex: 1 0 100%; color: var(--muted); font-size: 0.8125rem; }
+.cg-xp:empty { display: none; }
+/* Boutons de rotation de la vue éclatée : zone de 44 px de haut (exploded.css en pose 36). */
+.cockpit-guide .xp-btn { min-height: 44px; }
+
+/* --------------------------------------------------------------------------
+   Scène : parcours cockpit guidé (vue de côté). Le cockpit d'origine du plan est redessiné par le calque
+   CockpitDims (simulation, entretoises au-dessus comprises) : celui du plan s'efface pour ne pas doubler.
+   Le fantôme orange (cible) du plan reste affiché.
+   -------------------------------------------------------------------------- */
+.stage[data-guide="cockpit"] .bp.bp-stock > .bp-cockpit { display: none; }
+.blueprint .cd .bp-stock .part { stroke: var(--bp-active); }
+.blueprint .cd .bp-stock .bar, .blueprint .cd .bp-stock .hand line { stroke: var(--bp-active); }
+.blueprint .cd .cd-tick { stroke: var(--ghost); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.blueprint .cd .cd-level { stroke: var(--bp-dim-line); stroke-width: 1; stroke-dasharray: 6 5; opacity: 0.8; vector-effect: non-scaling-stroke; }
+.blueprint .cd .cd-hoods { fill: rgba(var(--ghost-rgb), 0.16); stroke: var(--ghost); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.blueprint .cd .cd-hoods-dot { fill: var(--ghost); }

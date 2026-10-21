@@ -1,0 +1,63 @@
+/* --------------------------------------------------------------------------
+   Selle guidée en 3 temps (panneau de la phase Réglages, zoom selle).
+   Dépend de tokens.css et ui.css (.readout, .cell, .delta, .chip, .tool, .note, .slider).
+   -------------------------------------------------------------------------- */
+.saddle-guide { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.saddle-guide .eyebrow { margin: 0; }
+.saddle-guide p { margin: 0; }
+
+/* Récapitulatif des 3 temps : cliquable, temps en cours souligné orange, temps réglé en vert. */
+.sg-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; }
+.sg-step {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 6px; align-items: baseline;
+  width: 100%; min-width: 0; min-height: 48px; padding: 6px 8px; text-align: left; cursor: pointer;
+  background: var(--bg-2); color: var(--ink); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-sm);
+  font: inherit;
+}
+.sg-step:hover { border-color: var(--line-strong); }
+.sg-step[aria-current="step"] { border-bottom-color: var(--accent); }
+.sg-step-n { grid-row: 1 / 3; font-family: var(--f-display); font-weight: 700; font-size: 1.25rem; color: var(--muted); }
+.sg-step[aria-current="step"] .sg-step-n { color: var(--accent-text); }
+.sg-step-l { font-size: 0.8125rem; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-step-s { font-family: var(--f-mono); font-size: 0.6875rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.sg-step.is-done .sg-step-s { color: var(--ok-ink); }
+
+.sg-title { margin: 4px 0 0; font-family: var(--f-display); font-size: 1.375rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.sg-title:focus { outline: none; }
+.sg-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+
+.sg-readout .cell .eyebrow { margin-bottom: 2px; }
+/* Écart en mono, comme la colonne « Écart » de DeltaTable */
+.sg-gap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.sg-gap-v { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ghost-dim); font-weight: 600; }
+.sg-gap-v.ok { color: var(--ok-ink); }
+.sg-tol { font-size: 0.8125rem; color: var(--muted); }
+.saddle-guide .delta { font-size: 1.375rem; }
+
+.sg-how ol { margin: 0 0 8px; padding-left: 20px; font-size: 0.875rem; color: var(--ink-2); }
+.sg-how li + li { margin-top: 2px; }
+.sg-coupled { font-family: var(--f-mono); font-size: 0.8125rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.sg-warn { display: flex; flex-direction: column; gap: 4px; }
+
+.sg-why summary { cursor: pointer; font-size: 0.8125rem; color: var(--ink-2); min-height: 32px; display: flex; align-items: center; }
+.sg-why p { font-size: 0.8125rem; color: var(--muted); line-height: 1.5; }
+
+/* Curseur + saisie numérique */
+.sg-control { margin: 0; }
+.sg-control .slider-head label { color: var(--ink-2); font-size: 0.875rem; font-weight: 500; }
+.sg-inputs { display: flex; align-items: center; gap: 10px; }
+.sg-inputs input[type='range'] { flex: 1 1 auto; min-width: 0; }
+.sg-num { display: inline-flex; align-items: center; gap: 4px; flex: none; font-family: var(--f-mono); font-size: 0.8125rem; color: var(--muted); }
+.sg-num input { width: 5.5em; min-height: 44px; font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+.sg-row, .sg-nav, .sg-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sg-nav { justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--line); }
+.saddle-guide .btn.small { min-height: 44px; }
+.sg-save .hint { flex: 1 0 100%; color: var(--muted); font-size: 0.8125rem; }
+.sg-xp:empty { display: none; }
+
+/* Boutons de rotation de la vue éclatée : zone de 44 px de haut (exploded.css en pose 36). */
+.saddle-guide .xp-btn { min-height: 44px; }
+
+/* « Montrer le geste » : aria-disabled (pas disabled) pour garder le focus pendant et après l'animation. */
+.saddle-guide .btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }

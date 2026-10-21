@@ -1,0 +1,425 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Atelier de réglage selle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: workshop stage (parametric bike, zoomable) + fitter's instruction rail on the right */
+:root{
+  --bg:#E9ECEE; --surface:#F7F8F9; --ink:#171C21; --muted:#5B6670; --line:#C9D0D5;
+  --frame:#2A3139; --tire:#1C2126; --rim:#8A949C;
+  --dim:#0B7FA6; --target:#C77700; --ok:#2E8A55; --hi:#ffffff;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161A; --surface:#1A2026; --ink:#E6EAED; --muted:#93A0AA; --line:#2C343C;
+  --frame:#B9C3CB; --tire:#59636C; --rim:#6F7A83;
+  --dim:#41B6DD; --target:#F0A83A; --ok:#5CC488; --hi:#0E1216; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161A; --surface:#1A2026; --ink:#E6EAED; --muted:#93A0AA; --line:#2C343C;
+  --frame:#B9C3CB; --tire:#59636C; --rim:#6F7A83;
+  --dim:#41B6DD; --target:#F0A83A; --ok:#5CC488; --hi:#0E1216; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 32px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(28px,4vw,40px);line-height:1;margin:0;letter-spacing:.01em;text-transform:uppercase}
+h1 small{display:block;font-family:var(--f-mono);font-size:12px;font-weight:400;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;text-transform:uppercase}
+.prev{display:flex;flex-wrap:wrap;gap:10px}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+select,input[type=number]{font:inherit;font-size:14px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+input[type=number]{width:96px;font-family:var(--f-mono)}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+@media (max-width:900px){.main{grid-template-columns:1fr}}
+.stage{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.stage svg{display:block;width:100%;height:auto;aspect-ratio:1800/1152;max-width:100%}
+.stage-foot{position:absolute;left:12px;bottom:10px;font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.05em}
+.grid line{stroke:var(--line);stroke-width:1}
+#bike{transition:opacity .5s ease}
+.zoomed #bike{opacity:.28}
+.tube{fill:none;stroke:var(--frame);stroke-linecap:round}
+.tire{fill:none;stroke:var(--tire)}
+.rim{fill:none;stroke:var(--rim)}
+.spoke{stroke:var(--rim);stroke-width:2}
+.part{fill:var(--frame)}
+#saddleAsm{filter:none;transition:filter .5s}
+.zoomed #saddleAsm{filter:drop-shadow(0 14px 10px rgba(0,0,0,.28))}
+.saddle-shell{fill:var(--ink)}
+.rail{fill:none;stroke:var(--muted);stroke-width:4}
+.clamp{fill:var(--rim);stroke:var(--frame);stroke-width:2}
+.ghost{fill:none;stroke:var(--target);stroke-width:3;stroke-dasharray:9 7}
+.dimline{stroke:var(--dim);stroke-width:2;fill:none}
+.dimtxt{fill:var(--dim);font-family:var(--f-mono);font-weight:500}
+.plumb{stroke:var(--dim);stroke-width:1.5;stroke-dasharray:6 6}
+.tgt{fill:var(--target);font-family:var(--f-mono);font-weight:500}
+.hot{cursor:pointer}
+.hot circle.ring{fill:none;stroke:var(--dim);stroke-width:3;animation:pulse 2.2s ease-out infinite;transform-box:fill-box;transform-origin:center}
+.hot circle.dot{fill:var(--dim)}
+.hot text{fill:var(--ink);font-family:var(--f-display);font-weight:600;font-size:34px;letter-spacing:.04em;text-transform:uppercase}
+.hot:focus{outline:none}.hot:focus-visible circle.dot{stroke:var(--ink);stroke-width:4}
+.zoomed .hot{display:none}
+@keyframes pulse{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.8);opacity:0}}
+
+.rail-panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+h2{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1.05;margin:0;text-transform:uppercase;text-wrap:balance}
+p{margin:0}
+.muted{color:var(--muted);font-size:14px}
+button{font:inherit;cursor:pointer;border-radius:6px}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--dim);outline-offset:2px}
+.btn{background:var(--ink);color:var(--surface);border:1px solid var(--ink);padding:9px 14px;font-weight:600;font-size:14px}
+.btn.ghostbtn{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.adj-list{display:flex;flex-direction:column;gap:8px}
+.adj{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;text-align:left;background:transparent;border:1px solid var(--line);padding:12px;color:var(--ink)}
+.adj:hover:not(:disabled){border-color:var(--dim)}
+.adj strong{font-family:var(--f-display);font-size:20px;text-transform:uppercase;letter-spacing:.03em}
+.adj span.sub{grid-column:1;font-size:13px;color:var(--muted)}
+.adj .go{grid-row:1/3;grid-column:2;font-family:var(--f-mono);font-size:12px;color:var(--dim)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--bg);padding:4px;border-radius:8px}
+.tab{background:transparent;border:0;padding:8px 4px;color:var(--muted);font-size:13px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tab b{font-family:var(--f-mono);font-size:11px;font-weight:500}
+.tab[aria-selected=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tab .st{font-family:var(--f-mono);font-size:11px}
+.st.todo{color:var(--target)}.st.done{color:var(--ok)}
+.readout{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cell{border-top:2px solid var(--line);padding-top:6px}
+.cell.t{border-color:var(--target)}
+.cell .v{font-family:var(--f-mono);font-size:24px;font-variant-numeric:tabular-nums;line-height:1.2}
+.cell.t .v{color:var(--target)}
+.delta{font-family:var(--f-display);font-weight:700;font-size:26px;text-transform:uppercase;letter-spacing:.02em}
+.delta.ok{color:var(--ok)}
+.how{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.how ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.tool{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);border-left:2px solid var(--dim);padding-left:10px}
+.slider{display:flex;flex-direction:column;gap:4px}
+.slider label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.slider output{font-family:var(--f-mono);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--dim)}
+
+.explode{background:var(--bg);border-radius:8px;padding:8px}
+.explode svg{display:block;width:100%;height:auto}
+.xp{transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.xp-lbl{font-family:var(--f-mono);font-size:12px;fill:var(--muted);transition:opacity .4s}
+.xp-lbl.key{fill:var(--dim);font-weight:500}
+.explode:not(.open) .xp-lbl{opacity:0}
+.explode:not(.open) .xp{transform:none!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><small>Étape 3 / Réglage du vélo · prototype</small>Atelier de réglage</h1>
+    <div class="prev">
+      <div class="field"><label for="model">Vélo (étape 2)</label>
+        <select id="model"><option value="endu">Route endurance · T56</option><option value="race">Route course · T54</option></select></div>
+      <div class="field"><label for="inseam">Entrejambe (cm)</label><input id="inseam" type="number" min="70" max="100" step="0.5" value="84"></div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="stage" id="stage">
+      <svg id="svg" viewBox="-790 -860 1800 1152" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Vélo de profil avec réglages">
+        <g id="bike"></g>
+        <g id="saddleAsm"></g>
+        <g id="overlay"></g>
+        <g id="hots"></g>
+      </svg>
+      <div class="stage-foot" id="foot">Vélo dessiné depuis sa géométrie · touche la selle</div>
+    </div>
+
+    <aside class="rail-panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div>
+
+<script>
+const MODELS={
+  endu:{stack:585,reach:383,sta:73.5,hta:72,htl:170,cs:415,drop:72,offset:50,st:540,postOff:20,label:"Route endurance · taille 56"},
+  race:{stack:548,reach:386,sta:73.5,hta:73,htl:145,cs:408,drop:70,offset:43,st:510,postOff:0,label:"Route course · taille 54"}
+};
+const WR=340, OVER=[-790,-860,1800,1152];
+const RAIL_MIN=-25, RAIL_MAX=25;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const S={model:'endu',inseam:84,H:718,shift:8,tilt:3,mode:'overview',step:'height',vb:[...OVER],explode:false,busy:false};
+
+const $=id=>document.getElementById(id);
+const r=d=>d*Math.PI/180;
+const P=(p)=>`${p[0].toFixed(1)},${(-p[1]).toFixed(1)}`;
+const add=(a,b,k=1)=>[a[0]+b[0]*k,a[1]+b[1]*k];
+const fmt=(n,d=0)=>n.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+function geo(){
+  const m=MODELS[S.model];
+  const u=[-Math.cos(r(m.sta)),Math.sin(r(m.sta))];        // seat tube axis, up-back
+  const ax=[Math.cos(r(m.hta)),-Math.sin(r(m.hta))];        // steering axis, downward-forward
+  const BB=[0,0], RA=[-Math.sqrt(m.cs**2-m.drop**2),m.drop];
+  const HT=[m.reach,m.stack], HB=add(HT,ax,m.htl);
+  const t=(m.stack-m.drop)/Math.sin(r(m.hta));
+  const FA=[m.reach+t*Math.cos(r(m.hta))+m.offset/Math.sin(r(m.hta)),m.drop];
+  const SC=add(BB,u,m.st);
+  return {m,u,ax,BB,RA,HT,HB,FA,SC};
+}
+// Saddle position for given H/shift/tilt
+function saddle(g,H,shift,tilt){
+  const clamp=add(add(g.BB,g.u,H-45),[-g.m.postOff,0]);
+  const a=r(tilt);
+  const rot=(lx,ly)=>[clamp[0]+(lx*Math.cos(a)-ly*Math.sin(a)),clamp[1]+(lx*Math.sin(a)+ly*Math.cos(a))];
+  return {clamp,nose:rot(142+shift,40),tail:rot(-135+shift,42),top:rot(shift,47)};
+}
+function targets(g){
+  const H=Math.round(S.inseam*10*0.883);
+  const tilt=0;
+  const T=Math.round(H*0.095);                    // exemple de cible de recul (bec de selle derrière l'axe du pédalier)
+  const s0=saddle(g,H,0,tilt);
+  let shift=(-T - s0.nose[0]);
+  shift=Math.round(shift);
+  return {H,tilt,setback:T,shift,shiftClamped:Math.max(RAIL_MIN,Math.min(RAIL_MAX,shift))};
+}
+
+function wheel(c){
+  let s=`<circle class="tire" cx="${c[0]}" cy="${-c[1]}" r="${WR-11}" stroke-width="22"/><circle class="rim" cx="${c[0]}" cy="${-c[1]}" r="${WR-38}" stroke-width="12"/>`;
+  for(let i=0;i<18;i++){const a=i*Math.PI/9;s+=`<line class="spoke" x1="${c[0]+Math.cos(a)*14}" y1="${-c[1]+Math.sin(a)*14}" x2="${c[0]+Math.cos(a+.25)*(WR-44)}" y2="${-c[1]+Math.sin(a+.25)*(WR-44)}"/>`}
+  return s+`<circle class="part" cx="${c[0]}" cy="${-c[1]}" r="16"/>`;
+}
+function drawBike(g){
+  const {m,u,ax,BB,RA,HT,HB,FA,SC}=g;
+  const up=[-ax[0],-ax[1]];
+  const ground=-(m.drop-WR);
+  let s=`<g class="grid">${Array.from({length:19},(_,i)=>`<line x1="${-790+i*100}" y1="-860" x2="${-790+i*100}" y2="${ground}"/>`).join('')}</g>`;
+  s+=`<line x1="-790" y1="${ground}" x2="1010" y2="${ground}" stroke="var(--muted)" stroke-width="2"/>`;
+  s+=wheel(RA)+wheel(FA);
+  const TTend=add(HT,ax,22), DTend=add(HB,ax,-18);
+  s+=`<path class="tube" stroke-width="18" d="M${P(add(SC,u,-25))} L${P(RA)}"/>`;
+  s+=`<path class="tube" stroke-width="22" d="M${P(BB)} L${P(RA)}"/>`;
+  s+=`<path class="tube" stroke-width="34" d="M${P(BB)} L${P(DTend)}"/>`;
+  s+=`<path class="tube" stroke-width="28" d="M${P(SC)} L${P(TTend)}"/>`;
+  s+=`<path class="tube" stroke-width="30" d="M${P(BB)} L${P(SC)}"/>`;
+  s+=`<path class="tube" stroke-width="42" d="M${P(HT)} L${P(HB)}"/>`;
+  const fc=add(HB,ax,(HB[1]-FA[1])/(-ax[1])*.55);
+  s+=`<path class="tube" stroke-width="22" d="M${P(HB)} Q${P(fc)} ${P(FA)}"/>`;
+  // cockpit
+  const st=add(HT,up,45), ang=r(90-m.hta-10), stemEnd=add(st,[Math.cos(ang),Math.sin(ang)],100);
+  s+=`<path class="tube" stroke-width="20" d="M${P(HT)} L${P(add(HT,up,55))}"/><path class="tube" stroke-width="22" d="M${P(st)} L${P(stemEnd)}"/>`;
+  const b=stemEnd;
+  s+=`<path class="tube" stroke-width="16" d="M${P(b)} C${P([b[0]+70,b[1]+8])} ${P([b[0]+85,b[1]-10])} ${P([b[0]+80,b[1]-45])} C${P([b[0]+75,b[1]-110])} ${P([b[0]+20,b[1]-140])} ${P([b[0]-15,b[1]-120])}"/>`;
+  s+=`<path class="tube" stroke-width="26" d="M${P([b[0]+70,b[1]+4])} L${P([b[0]+112,b[1]+30])}"/>`;
+  // drivetrain
+  const crank=r(-25), pedal=add(BB,[Math.cos(crank),Math.sin(crank)],172.5);
+  s+=`<circle cx="0" cy="0" r="104" fill="none" stroke="var(--frame)" stroke-width="10"/><circle cx="0" cy="0" r="78" fill="none" stroke="var(--rim)" stroke-width="4"/>`;
+  s+=`<line x1="${RA[0]}" y1="${-RA[1]-52}" x2="0" y2="-104" stroke="var(--rim)" stroke-width="4"/><line x1="${RA[0]}" y1="${-RA[1]+52}" x2="0" y2="104" stroke="var(--rim)" stroke-width="4"/>`;
+  s+=`<path class="tube" stroke-width="20" d="M0,0 L${P(pedal)}"/><rect x="${pedal[0]-42}" y="${-pedal[1]-9}" width="84" height="18" rx="6" class="part"/><circle cx="0" cy="0" r="22" class="part"/>`;
+  return s;
+}
+const SHELL="M -135 -40 C -142 -58 -96 -64 -55 -58 L 88 -50 C 122 -48 142 -46 144 -40 C 142 -33 120 -31 82 -33 L -58 -31 C -108 -29 -131 -27 -135 -40 Z";
+function drawSaddle(g,H,shift,tilt){
+  const sd=saddle(g,H,shift,tilt);
+  const c=sd.clamp, ins=add(g.SC,g.u,-30), headBase=add(c,g.u,-28), postTop=add(headBase,[g.m.postOff,0]);
+  let s=`<path class="tube" stroke-width="27" stroke="var(--rim)" style="stroke:var(--rim)" d="M${P(ins)} L${P(postTop)} Q${P(add(headBase,[g.m.postOff*.3,0]))} ${P(c)}"/>`;
+  s+=`<g transform="translate(${c[0].toFixed(1)},${(-c[1]).toFixed(1)}) rotate(${(-tilt).toFixed(2)})">`;
+  s+=`<g transform="translate(${shift.toFixed(1)},0)"><path class="rail" d="M -78 -32 L -62 -6 L 64 -6 L 86 -34"/><path class="saddle-shell" d="${SHELL}"/></g>`;
+  s+=`<rect class="clamp" x="-26" y="-12" width="52" height="16" rx="4"/><circle cx="0" cy="-4" r="4" fill="var(--frame)"/></g>`;
+  // seat collar
+  const col=add(g.SC,g.u,-8);
+  s+=`<g transform="translate(${col[0]},${-col[1]}) rotate(${-(g.m.sta)+90})"><rect x="-22" y="-10" width="44" height="20" rx="4" fill="var(--frame)" stroke="var(--rim)" stroke-width="2"/></g>`;
+  return {svg:s,sd};
+}
+function drawGhost(g,t){
+  const sd=saddle(g,t.H,t.shiftClamped,t.tilt);
+  return `<g transform="translate(${sd.clamp[0].toFixed(1)},${(-sd.clamp[1]).toFixed(1)}) rotate(${-t.tilt}) translate(${t.shiftClamped},0)"><path class="ghost" d="${SHELL}"/></g>`;
+}
+function dims(g,sd,t){
+  const {u,BB}=g, n=[u[1],-u[0]];        // normal pointing forward/right of seat tube
+  const off=-70, a0=add(add(BB,u,S.H-260),n,off), a1=add(add(BB,u,S.H),n,off);
+  const ang=-(Math.atan2(u[1],u[0])*180/Math.PI);
+  const lab=add(add(BB,u,S.H-130),n,off-16);
+  let s=`<path class="dimline" d="M${P(a0)} L${P(a1)}"/><path class="dimline" d="M${P(add(a1,n,-14))} L${P(add(a1,n,14))}"/>`;
+  s+=`<text class="dimtxt" font-size="20" transform="translate(${lab[0]},${-lab[1]}) rotate(${ang+180})" text-anchor="middle">hauteur ${fmt(S.H)} mm ↧ axe pédalier</text>`;
+  // plumb + setback
+  const yTop=sd.top[1]+70, y=sd.nose[1]+34;
+  s+=`<line class="plumb" x1="0" y1="${-yTop}" x2="0" y2="${-(sd.nose[1]-200)}"/>`;
+  s+=`<text class="dimtxt" font-size="15" x="8" y="${-yTop+16}">fil à plomb</text>`;
+  s+=`<path class="dimline" d="M${sd.nose[0]},${-y} L0,${-y} M${sd.nose[0]},${-y-10} L${sd.nose[0]},${-y+10} M0,${-y-10} L0,${-y+10}"/>`;
+  s+=`<text class="dimtxt" font-size="20" x="${sd.nose[0]/2}" y="${-y-10}" text-anchor="middle">recul ${fmt(-sd.nose[0])} mm</text>`;
+  // tilt
+  const tl=sd.tail, x2=sd.nose[0]+40;
+  s+=`<line class="plumb" x1="${tl[0]-10}" y1="${-tl[1]}" x2="${x2}" y2="${-tl[1]}" />`;
+  s+=`<path class="dimline" d="M${tl[0]},${-tl[1]} L${sd.nose[0]},${-sd.nose[1]}"/>`;
+  s+=`<text class="dimtxt" font-size="20" x="${x2+8}" y="${-((sd.nose[1]+tl[1])/2)-4}">${S.tilt>0?'+':''}${fmt(S.tilt,1)}°</text>`;
+  // target labels
+  s+=`<text class="tgt" font-size="16" x="${tl[0]-20}" y="${-tl[1]-46}">cible ┄</text>`;
+  return s;
+}
+function hots(g,sd){
+  const m=g.m, c=sd.top, hb=add(g.HT,[-g.ax[0],-g.ax[1]],60);
+  const h=(id,p,label,dx)=>`<g class="hot" tabindex="0" role="button" aria-label="${label}" data-go="${id}" transform="translate(${p[0]},${-p[1]})"><circle class="ring" r="26"/><circle class="dot" r="12"/><text x="${dx}" y="12" text-anchor="${dx<0?'end':'start'}">${label}</text></g>`;
+  return h('saddle',add(c,[0,40]),'Selle',-40)+h('cockpit',[hb[0]+90,hb[1]+60],'Cockpit',40);
+}
+
+let lastModel=null;
+function renderStage(){
+  const g=geo(), t=targets(g);
+  if(lastModel!==S.model){$('bike').innerHTML=drawBike(g);lastModel=S.model}
+  const {svg,sd}=drawSaddle(g,S.H,S.shift,S.tilt);
+  $('saddleAsm').innerHTML=svg;
+  $('overlay').innerHTML = S.mode==='saddle' ? drawGhost(g,t)+dims(g,sd,t) : '';
+  $('hots').innerHTML=hots(g,sd);
+  return {g,t,sd};
+}
+function render(){
+  const {g,t,sd}=renderStage();
+  renderPanel(g,t,sd);
+}
+
+/* ---------- panel ---------- */
+function deltas(g,t){
+  const sd=saddle(g,S.H,S.shift,S.tilt);
+  return {dH:t.H-S.H, dS:t.shiftClamped-S.shift, dT:t.tilt-S.tilt, setback:-sd.nose[0]};
+}
+function stepState(d){
+  return {height:Math.abs(d.dH)<1,setback:Math.abs(d.dS)<1,tilt:Math.abs(d.dT)<.25};
+}
+function renderPanel(g,t,sd){
+  const d=deltas(g,t), ok=stepState(d), P=$('panel');
+  if(S.mode==='overview'){
+    const n=[ok.height,ok.setback,ok.tilt].filter(x=>!x).length;
+    P.innerHTML=`<div class="eyebrow">${MODELS[S.model].label}</div>
+      <h2>${n?`${n} réglage${n>1?'s':''} à faire sur la selle`:'Selle réglée'}</h2>
+      <p class="muted">Les cibles viennent de tes mesures (étape 1). Touche une zone du vélo pour voir le geste à faire.</p>
+      <div class="adj-list">
+        <button class="adj" data-go="saddle"><strong>Selle</strong><span class="sub">Hauteur ${sign(d.dH)} mm · recul ${sign(d.dS)} mm · bec ${sign(d.dT,1)}°</span><span class="go">Ouvrir →</span></button>
+        <button class="adj" data-go="cockpit"><strong>Cockpit</strong><span class="sub">Entretoises, potence, cintre</span><span class="go">Étape suivante</span></button>
+      </div>
+      <button class="btn ghostbtn" id="reset">Remettre ma position de départ</button>`;
+    return;
+  }
+  if(S.mode==='cockpit'){
+    P.innerHTML=`<button class="btn ghostbtn" data-back>← Vue complète</button><div class="eyebrow">Cockpit</div><h2>Pas encore dans ce prototype</h2><p class="muted">Même principe que la selle : zoom sur la potence, entretoises qui passent dessus/dessous, cote du drop selle–cintre.</p>`;
+    return;
+  }
+  const tabs=[['height','Hauteur',ok.height,`${sign(d.dH)} mm`],['setback','Recul',ok.setback,`${sign(d.dS)} mm`],['tilt','Inclinaison',ok.tilt,`${sign(d.dT,1)}°`]];
+  const tabHtml=tabs.map(([k,l,o,v],i)=>`<button class="tab" role="tab" aria-selected="${S.step===k}" data-step="${k}"><b>${i+1}</b>${l}<span class="st ${o?'done':'todo'}">${o?'OK':v}</span></button>`).join('');
+  const sta=g.m.sta, back=Math.abs(d.dH*Math.cos(r(sta)));
+  let body='';
+  if(S.step==='height'){
+    body=readout('Actuelle',`${fmt(S.H)} mm`,'Cible',`${fmt(t.H)} mm`)+
+    deltaLine(ok.height,d.dH>0?`Monter de ${fmt(d.dH)} mm`:`Descendre de ${fmt(-d.dH)} mm`)+
+    `<div class="how"><ol><li>Desserre le collier de tige de selle.</li><li>${d.dH>=0?'Monte':'Descends'} la tige de ${fmt(Math.abs(d.dH))} mm le long du tube. Repère la position avec un ruban adhésif.</li><li>Resserre au couple gravé sur le collier.</li></ol>
+    <div class="tool"><span class="chip">Clé Allen 4 ou 5 mm</span><span class="chip">Clé dynamométrique</span><span class="chip">souvent 5 N·m</span></div></div>
+    ${Math.abs(d.dH)>=1?`<p class="note">Le tube de selle est incliné à ${fmt(sta,1)}° : ${d.dH>0?'monter':'descendre'} de ${fmt(Math.abs(d.dH))} mm ${d.dH>0?'recule':'avance'} aussi le bec de ${fmt(back,1)} mm. On corrige ça à l'étape 2.</p>`:''}`+
+    slider('sH','Hauteur selle',680,790,1,S.H,'mm');
+  }else if(S.step==='setback'){
+    const out=t.shift!==t.shiftClamped;
+    body=readout('Recul actuel',`${fmt(d.setback)} mm`,'Recul cible',`${fmt(t.setback)} mm`)+
+    deltaLine(ok.setback,d.dS>0?`Avancer la selle de ${fmt(d.dS)} mm`:`Reculer la selle de ${fmt(-d.dS)} mm`)+
+    `<div class="how"><ol><li>Desserre la vis du chariot sous la selle, sans la retirer.</li><li>Fais glisser la selle sur ses rails de ${fmt(Math.abs(d.dS))} mm ${d.dS>0?'vers l\'avant':'vers l\'arrière'}. Garde l'inclinaison telle quelle.</li><li>Reste dans la zone graduée des rails, puis resserre.</li></ol>
+    <div class="tool"><span class="chip">Clé Allen 5 ou 6 mm</span><span class="chip">couple gravé sur la tige</span></div></div>
+    ${out?`<p class="note">La cible sort de la plage des rails. Il faudrait une tige avec ${t.shift<0?'plus':'moins'} de recul.</p>`:''}`+
+    slider('sS','Position sur les rails',RAIL_MIN,RAIL_MAX,1,S.shift,'mm');
+  }else{
+    body=readout('Bec actuel',`${S.tilt>0?'+':''}${fmt(S.tilt,1)}°`,'Cible',`${fmt(t.tilt,1)}°`)+
+    deltaLine(ok.tilt,d.dT<0?`Baisser le bec de ${fmt(-d.dT,1)}°`:`Relever le bec de ${fmt(d.dT,1)}°`)+
+    `<div class="how"><ol><li>Avec la même vis du chariot, bascule la selle.</li><li>Pose un niveau du bec à l'arrière de la selle : la bulle doit être centrée (0°).</li><li>Resserre, puis vérifie que le recul n'a pas bougé.</li></ol>
+    <div class="tool"><span class="chip">Niveau à bulle</span><span class="chip">Clé Allen 5 ou 6 mm</span></div></div>`+
+    slider('sT','Inclinaison du bec',-6,6,.5,S.tilt,'°');
+  }
+  P.innerHTML=`<button class="btn ghostbtn" data-back>← Vue complète</button>
+   <div><div class="eyebrow">Selle · ${MODELS[S.model].label}</div><h2>Réglage de la selle</h2></div>
+   <div class="tabs" role="tablist">${tabHtml}</div>${body}
+   <div class="row"><button class="btn" id="show" ${stepState(d)[S.step]?'disabled':''}>Montrer le geste</button><button class="btn ghostbtn" id="xp" aria-pressed="${S.explode}">${S.explode?'Fermer l\'éclaté':'Vue éclatée'}</button></div>
+   ${exploded()}`;
+}
+const sign=(v,d=0)=>(v>0?'+':v<0?'−':'')+fmt(Math.abs(v),d);
+const readout=(a,av,b,bv)=>`<div class="readout"><div class="cell"><div class="eyebrow">${a}</div><div class="v">${av}</div></div><div class="cell t"><div class="eyebrow">${b}</div><div class="v">${bv}</div></div></div>`;
+const deltaLine=(ok,txt)=>`<div class="delta ${ok?'ok':''}">${ok?'C\'est réglé ✓':txt}</div>`;
+const slider=(id,l,min,max,step,v,u)=>`<div class="slider"><label for="${id}">${l}<output>${fmt(v,step<1?1:0)} ${u}</output></label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
+
+function exploded(){
+  const key=S.step==='height'?'collar':'cradle';
+  const parts=[
+    ['shell','Coque de selle',-78,`<path d="M10 40 C 6 28 40 24 70 26 L 210 30 C 240 32 254 34 254 40 C 252 46 230 48 200 46 L 60 46 C 30 48 12 50 10 40 Z" fill="var(--ink)"/>`],
+    ['rails','Rails (zone graduée)',-52,`<path d="M50 62 L 62 72 L 200 72 L 214 60" fill="none" stroke="var(--muted)" stroke-width="5"/>${[0,1,2,3,4,5,6].map(i=>`<line x1="${100+i*12}" y1="68" x2="${100+i*12}" y2="76" stroke="var(--muted)" stroke-width="1.5"/>`).join('')}`],
+    ['cradle','Chariot (2 demi-coquilles)',-24,`<rect x="104" y="78" width="72" height="10" rx="3" fill="var(--rim)"/><rect x="104" y="92" width="72" height="10" rx="3" fill="var(--rim)"/>`],
+    ['head','Tête de tige',0,`<path d="M110 106 L 170 106 L 160 120 L 120 120 Z" fill="var(--frame)"/><rect x="128" y="120" width="24" height="70" fill="var(--frame)"/>`],
+    ['bolt','Vis du chariot',34,`<rect x="137" y="128" width="6" height="40" fill="var(--target)"/><rect x="131" y="166" width="18" height="8" rx="2" fill="var(--target)"/>`],
+    ['collar','Collier de tige (sur le cadre)',58,`<rect x="120" y="182" width="40" height="16" rx="4" fill="none" stroke="var(--dim)" stroke-width="3"/>`]
+  ];
+  return `<div class="explode ${S.explode?'open':''}" ${S.explode?'':'hidden'}><svg viewBox="0 0 420 260" aria-label="Vue éclatée du chariot de selle">
+    ${parts.map(([k,l,dy,s])=>`<g class="xp" style="transform:translateY(${dy}px)">${s}<text class="xp-lbl ${k===key||(k==='bolt'&&S.step!=='height')?'key':''}" x="270" y="${({shell:40,rails:70,cradle:94,head:116,bolt:150,collar:194})[k]}">${l}</text></g>`).join('')}
+  </svg></div>`;
+}
+
+/* ---------- viewBox camera ---------- */
+function zoomBox(){
+  const g=geo(), sd=saddle(g,S.H,S.shift,S.tilt);
+  const w=640, h=w*OVER[3]/OVER[2];
+  const cx=(sd.clamp[0]+60)/2-10, cy=-(sd.clamp[1]+10);
+  return [cx-w/2,cy-h/2,w,h];
+}
+function camera(to){
+  const from=[...S.vb], svg=$('svg');
+  if(reduce){S.vb=to;svg.setAttribute('viewBox',to.join(' '));return}
+  const t0=performance.now(), D=850;
+  const step=now=>{
+    const k=Math.min(1,(now-t0)/D), e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+    S.vb=from.map((v,i)=>v+(to[i]-v)*e);
+    svg.setAttribute('viewBox',S.vb.map(v=>v.toFixed(1)).join(' '));
+    if(k<1)requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function go(mode){
+  S.mode=mode; S.explode=false;
+  $('stage').classList.toggle('zoomed',mode!=='overview');
+  $('foot').textContent=mode==='overview'?'Vélo dessiné depuis sa géométrie · touche la selle':'Pointillés orange = position cible';
+  render();
+  if(mode==='saddle')camera(zoomBox());
+  else if(mode==='cockpit'){const g=geo();camera([g.HT[0]-300,-g.HT[1]-200,640,640*OVER[3]/OVER[2]])}
+  else camera([...OVER]);
+}
+
+/* ---------- gesture demo ---------- */
+function animateTo(key,to){
+  if(S.busy)return; const from=S[key];
+  if(reduce){S[key]=to;render();return}
+  S.busy=true; const t0=performance.now(), D=1500;
+  const f=now=>{const k=Math.min(1,(now-t0)/D),e=1-Math.pow(1-k,3);
+    S[key]=from+(to-from)*e; if(k===1)S[key]=to; render();
+    if(k<1)requestAnimationFrame(f); else S.busy=false};
+  requestAnimationFrame(f);
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-go]'); if(g){go(g.dataset.go);return}
+  if(e.target.closest('[data-back]')){go('overview');return}
+  const tb=e.target.closest('[data-step]'); if(tb){S.step=tb.dataset.step;render();return}
+  if(e.target.closest('#reset')){Object.assign(S,{H:718,shift:8,tilt:3});render();return}
+  if(e.target.closest('#xp')){S.explode=!S.explode;render();return}
+  if(e.target.closest('#show')){const t=targets(geo());
+    const map={height:['H',t.H],setback:['shift',t.shiftClamped],tilt:['tilt',t.tilt]};
+    S.explode=false; animateTo(...map[S.step]);}
+});
+document.addEventListener('keydown',e=>{const h=e.target.closest&&e.target.closest('.hot');if(h&&(e.key==='Enter'||e.key===' ')){e.preventDefault();go(h.dataset.go)}});
+document.addEventListener('input',e=>{
+  const k={sH:'H',sS:'shift',sT:'tilt'}[e.target.id];
+  if(k){S[k]=+e.target.value;renderStage();
+    const o=e.target.parentElement.querySelector('output');if(o)o.textContent=`${fmt(S[k],k==='tilt'?1:0)} ${k==='tilt'?'°':'mm'}`}
+});
+document.addEventListener('change',e=>{if(['sH','sS','sT'].includes(e.target.id)){const id=e.target.id;render();const el=$(id);if(el)el.focus()}});
+$('model').addEventListener('change',e=>{S.model=e.target.value;render();if(S.mode==='saddle')camera(zoomBox())});
+$('inseam').addEventListener('change',e=>{const v=+e.target.value;if(v>=70&&v<=100){S.inseam=v;render()}});
+render();
+</script>
+
+</body></html>
