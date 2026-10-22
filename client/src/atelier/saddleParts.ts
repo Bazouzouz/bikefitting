@@ -8,6 +8,9 @@
  *
  * Deux variantes : chariot à 2 vis verticales (avant/arrière, réglage du bec par différentiel) ou
  * à 1 vis transversale.
+ *
+ * Réglage animé (minimap) : inclinaison de la selle dans `saddleAssembly` (rails + coque tournés autour du
+ * centre du chariot), translations de hauteur et de recul par `saddleMoves` (décalages ajoutés aux pièces).
  */
 import {
   add3,
@@ -66,6 +69,20 @@ const RAIL_Z = 21;
 
 const rad = (d: number) => (d * Math.PI) / 180;
 
+/** Rotation d'un point autour de l'axe z passant par l'origine (cos, sin donnés). */
+const rotZ = (p: Vec3, c: number, s: number): Vec3 => [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]];
+
+/** Solide tourné de `deg` autour de l'axe z passant par l'origine (+ = +x vers +y) : sommets, normales, repères. */
+function rotateSolidZ(solid: Solid, deg: number): Solid {
+  if (!deg) return solid;
+  const c = Math.cos(rad(deg));
+  const s = Math.sin(rad(deg));
+  return {
+    faces: solid.faces.map((f) => ({ ...f, pts: f.pts.map((p) => rotZ(p, c, s)), n: rotZ(f.n, c, s) })),
+    ...(solid.marks && { marks: solid.marks.map((m) => ({ a: rotZ(m.a, c, s), b: rotZ(m.b, c, s), n: rotZ(m.n, c, s) })) }),
+  };
+}
+
 /** Coque vue de dessus (x, z) : bec étroit à l'avant, arrière large et arrondi. */
 function shellOutline(): [number, number][] {
   const halfW = (x: number) => {
@@ -104,8 +121,11 @@ function screw(head: Vec3, dir: Vec3, len: number, rShank: number, rHead: number
   ];
 }
 
-/** Assemblage complet pour un angle de tube de selle et une variante de chariot. */
-export function saddleAssembly(staDeg: number, variant: ClampVariant = 'two-bolt'): SaddleAssembly {
+/**
+ * Assemblage complet pour un angle de tube de selle et une variante de chariot. `tiltDeg` : rails et coque
+ * tournés autour du centre du chariot (origine, axe z ; + = bec relevé, le bec est vers +x) ; autres pièces fixes.
+ */
+export function saddleAssembly(staDeg: number, variant: ClampVariant = 'two-bolt', tiltDeg = 0): SaddleAssembly {
   const s = rad(staDeg);
   const up: Vec3 = [-Math.cos(s), Math.sin(s), 0]; // axe de la tige, vers le haut
   const down: Vec3 = [Math.cos(s), -Math.sin(s), 0];
@@ -117,7 +137,7 @@ export function saddleAssembly(staDeg: number, variant: ClampVariant = 'two-bolt
   const outline = shellOutline();
   const ring = (y: number, d: number): Vec3[] =>
     outline.map(([x, z]) => [14 + (x - 14) * (1 - d / 134), y, Math.sign(z) * Math.max(Math.abs(z) * 0.5, Math.abs(z) - d)]);
-  const shell: Solid = { faces: loft([ring(32, 0), ring(39, 0), ring(43, 3.5), ring(45.5, 9), ring(46.5, 16)], [0, 1, 0]) };
+  const shell: Solid = rotateSolidZ({ faces: loft([ring(32, 0), ring(39, 0), ring(43, 3.5), ring(45.5, 9), ring(46.5, 16)], [0, 1, 0]) }, tiltDeg);
 
   /* Rails : partie droite graduée + remontées vers la coque */
   const railFaces: Face[] = [];
@@ -230,7 +250,7 @@ export function saddleAssembly(staDeg: number, variant: ClampVariant = 'two-bolt
   const parts: SaddlePart[] = [
     { id: 'shell', label: ['Coque de selle'], name: 'Coque de selle', solid: shell, explode: xp(180) },
     { id: 'upper', label: ['Coquille haute'], name: 'Demi-coquille haute', solid: upper, explode: xp(122) },
-    { id: 'rails', label: ['Rails gradués'], name: 'Rails gradués', solid: { faces: railFaces, marks: railMarks }, explode: xp(74) },
+    { id: 'rails', label: ['Rails gradués'], name: 'Rails gradués', solid: rotateSolidZ({ faces: railFaces, marks: railMarks }, tiltDeg), explode: xp(74) },
     { id: 'lower', label: ['Coquille basse'], name: 'Demi-coquille basse', solid: lower, explode: xp(38) },
     { id: 'head', label: ['Tête de tige'], name: 'Tête de tige', solid: head, explode: [0, 0, 0] },
     {
@@ -255,6 +275,36 @@ export function saddleAssembly(staDeg: number, variant: ClampVariant = 'two-bolt
       tilt: { part: 'bolts', gesture: clampGesture },
     },
   };
+}
+
+/** Axe de la tige vers le haut, pour un angle de tube de selle (°). */
+export const postUp = (staDeg: number): Vec3 => [-Math.cos(rad(staDeg)), Math.sin(rad(staDeg)), 0];
+
+/** Inclinaison de la selle (°) au temps `t` : `from` partout, sauf au temps tilt où elle va de `from` à `from + delta`. */
+export function saddleTiltAt(step: SaddleStep, from: number, delta: number, t: number): number {
+  return step === 'tilt' ? from + delta * t : from;
+}
+
+/**
+ * Translations de réglage au temps `t` ∈ [0, 1] (mm, repère local), à passer à `Exploded` (`moves`) :
+ * - height : `delta` mm (+ = monter) le long de l'axe de la tige, tout sauf le collier et sa vis (fixés au cadre) ;
+ * - setback : `delta` mm (+ = reculer la selle), rails et coque glissent dans le chariot qui reste en place,
+ *   le long des rails tournés de `tiltDeg` (inclinaison actuelle) ;
+ * - tilt : rien (rotation dans `saddleAssembly`).
+ */
+export function saddleMoves(step: SaddleStep, staDeg: number, delta: number, t: number, tiltDeg = 0): Partial<Record<PartId, Vec3>> {
+  const k = delta * t;
+  if (step === 'height') {
+    const v = scale3(postUp(staDeg), k);
+    const ids: PartId[] = ['shell', 'upper', 'rails', 'lower', 'head', 'bolts', 'post'];
+    return Object.fromEntries(ids.map((id) => [id, v]));
+  }
+  if (step === 'setback') {
+    // Direction des rails tournés : (cos, sin) ; reculer = aller en sens inverse.
+    const v: Vec3 = [-k * Math.cos(rad(tiltDeg)), 0 - k * Math.sin(rad(tiltDeg)), 0];
+    return { rails: v, shell: v };
+  }
+  return {};
 }
 
 /** Tous les sommets d'une pièce (avec décalage éventuel). */

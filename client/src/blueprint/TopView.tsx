@@ -53,6 +53,18 @@ const rect = (x0: number, x1: number, y0: number, y1: number): Pt[] => [
   { x: x0, y: y1 },
 ];
 
+/** Contour de la selle vue de dessus, nez en `tipX` (repère mathématique). Partagé avec la caméra de la scène. */
+export const topSaddle = (tipX: number): Pt[] => [
+  { x: tipX, y: -16 },
+  { x: tipX - 90, y: -52 },
+  { x: tipX - 255, y: -68 },
+  { x: tipX - 255, y: 68 },
+  { x: tipX - 90, y: 52 },
+  { x: tipX, y: 16 },
+];
+/** Ordonnée de base de la cote Recul (au-dessus des chaussures), avant le décalage de 0,9 fs. */
+export const TOP_SETBACK_Y = Q_FACTOR / 2 + 25 + 50;
+
 /** Géométrie vue de dessus d'un jeu de réglages (axe latéral = y du repère, inversé au rendu). */
 function topShapes(frame: Frame, wheel: Bike['wheel'], setup: Setup, shoeLen: number, barFlare: number) {
   const R = wheelRadius(wheel);
@@ -60,14 +72,7 @@ function topShapes(frame: Frame, wheel: Bike['wheel'], setup: Setup, shoeLen: nu
   const cp = cockpit(g, setup);
   const w = setup.handlebarWidth;
   const tipX = setup.tipX;
-  const saddle: Pt[] = [
-    { x: tipX, y: -16 },
-    { x: tipX - 90, y: -52 },
-    { x: tipX - 255, y: -68 },
-    { x: tipX - 255, y: 68 },
-    { x: tipX - 90, y: 52 },
-    { x: tipX, y: 16 },
-  ];
+  const saddle = topSaddle(tipX);
   // Cintre : tops à ±w/2, cocottes vers l'avant, puis drops évasés de `barFlare` (largeur prise aux cocottes).
   const flareOut = DROP_DEPTH * Math.tan(rad(barFlare));
   const barSide = (s: number): Pt[] => [
@@ -220,7 +225,7 @@ function TopDimsLayer({
     lines: [`Potence ${fmtNum(tgt.stemLength)} mm`, d(tgt.stemLength - cur.stemLength)],
   });
   // Recul : du BB au nez de selle, au-dessus des chaussures et de la selle.
-  const ySad = Q_FACTOR / 2 + 25 + 50 + fs * 0.9;
+  const ySad = TOP_SETBACK_Y + fs * 0.9;
   const mRec = push('setback', { x: 0, y: 75 }, { x: tgt.tipX, y: 75 }, { x: 0, y: ySad - 75 });
   labels.push({ id: 'setback', tone: 'ghost', at: mRec, prefer: ['n', 'nw', 'ne'], lines: [`Recul ${fmtNum(-tgt.tipX)} mm`, d(cur.tipX - tgt.tipX)] });
   // Manivelle : sous les chaussures (côté bas de l'écran).

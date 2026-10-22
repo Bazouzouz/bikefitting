@@ -40,6 +40,10 @@
   transition-delay: calc(var(--i, 0) * 40ms);
 }
 .xp.is-rotating .xp-part { transition: none; }
+/* Réglage animé de l'extérieur (rAF, minimap) : translation directe, sinon la transition ferait traîner le mouvement. */
+.xp.is-adjusting .xp-part { transition: none; }
+/* Bascule Éclater / Assembler animée en JS (compact, réglage animé) : pas de transition en plus (double mouvement). */
+.xp.is-toggling .xp-part { transition: none; }
 
 /* Faces : aplats, trait de la couleur de l'aplat pour masquer les jointures de facettes. */
 .xp-f { stroke-width: 0.6; stroke-linejoin: round; }

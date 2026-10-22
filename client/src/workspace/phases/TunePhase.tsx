@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { fmtNum, toFrame } from '../../blueprint/geometry';
 import { DeltaTable } from '../../components/DeltaTable';
 import { buildRows } from '../../components/rows';
@@ -21,6 +22,8 @@ export function TunePhase() {
   const focus = useStore((s) => s.focus);
   const style = useStore((s) => s.bike?.style);
   const { state, error } = useFit();
+  // Volet des curseurs : état gardé ici, car il est démonté pendant le zoom selle / cockpit.
+  const [slidersOpen, setSlidersOpen] = useState(true);
 
   if (error || !state) {
     return (
@@ -47,8 +50,11 @@ export function TunePhase() {
       )}
 
       {focus === 'overview' && (
-        <div className="ws-sliders">
-          <p className="eyebrow">Réglage actuel</p>
+        <details className="ws-fold" open={slidersOpen} onToggle={(e) => setSlidersOpen(e.currentTarget.open)}>
+          <summary>
+            <h3>Réglage actuel</h3>
+          </summary>
+          <div className="ws-sliders">
           {SETUP_SLIDERS.map((def) => {
             const value = state.current[def.key];
             const s = sliderFor(def, value, rider.inseam);
@@ -78,11 +84,16 @@ export function TunePhase() {
           <button type="button" className="btn small ghost" onClick={resetOverrides}>
             Réinitialiser (vélo d'origine)
           </button>
-        </div>
+          </div>
+        </details>
       )}
 
-      <h3>Écarts : réglage actuel → cible</h3>
-      <DeltaTable fit={state.fit} current={state.current} frame={frame} />
+      <details className="ws-fold" open>
+        <summary>
+          <h3>Écarts : réglage actuel → cible</h3>
+        </summary>
+        <DeltaTable fit={state.fit} current={state.current} frame={frame} />
+      </details>
     </PhasePanel>
   );
 }

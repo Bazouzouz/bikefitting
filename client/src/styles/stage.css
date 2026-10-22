@@ -68,6 +68,41 @@
 /* En bas à droite : le coin haut-gauche porte la note du plan. */
 .stage-back { position: absolute; bottom: 8px; right: 8px; z-index: 1; min-height: 44px; }
 
+/* Minimap 3D de la pièce zoomée : en haut à droite (le bouton retour est en bas à droite). */
+.stage-minimap {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  width: clamp(160px, 30%, 260px);
+  /* Hauteur pilotée par le ratio du svg (viewBox borné 0,8-1,4), plafonnée : jamais sur le bouton retour
+     (bas droite, 44 px + marges), ni plus de 45 % de la scène. */
+  max-height: min(45%, 300px, calc(100% - 68px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font-family: var(--f-mono); font-size: 11px; color: var(--ink);
+}
+/* Petite scène (téléphone) : plafond relevé, sinon la pièce devient minuscule ; toujours au-dessus du bouton retour. */
+@container (max-width: 480px) {
+  .stage-minimap { max-height: min(60%, calc(100% - 68px)); }
+}
+.stage-minimap.is-collapsed { width: auto; max-width: calc(100% - 16px); }
+/* Titre et boutons sur deux lignes quand la minimap est étroite. */
+.stage-minimap-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; padding: 2px 2px 2px 8px; }
+.smm-title { margin: 0; flex: 1 1 110px; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.smm-name { font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.smm-val { color: var(--muted); overflow-wrap: anywhere; }
+.smm-note { color: var(--muted); font-size: 10px; }
+/* Agrandi : toute la scène sauf la zone du bouton retour (bas droite, 44 px + marges). */
+.stage-minimap.is-large { inset: 8px 8px 60px 8px; width: auto; max-height: none; }
+/* Boutons : jamais plus larges que la minimap (3 boutons sur 160 px : retour à la ligne). */
+.smm-actions { display: flex; flex-wrap: wrap; gap: 2px; flex: 0 1 auto; max-width: 100%; }
+.stage-minimap .btn { min-height: 32px; min-width: 32px; font-size: 11px; }
+.stage-minimap-pill { display: flex; flex-direction: column; align-items: flex-start; text-align: left; border: 0; }
+.stage-minimap-view { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; display: flex; }
+/* La vue 3D remplit la place restante ; le dessin garde son ratio (viewBox, centré). */
+.stage-minimap .xp, .stage-minimap .xp-stage { display: flex; flex: 1 1 auto; min-height: 0; }
+.stage-minimap .xp-svg { width: 100%; height: 100%; }
+/* Le cadre est celui de la minimap : pas de double bordure autour de la vue 3D. */
+.stage-minimap .xp-stage { border: 0; background: transparent; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+
 /* Tracé du cadre à l'arrivée d'un nouveau vélo : 900 ms, easeOutCubic.
    Les éléments animés portent data-trace ; --len = leur longueur à l'écran (px), posée par useTraceLengths. */
 .bp-trace [data-trace] {

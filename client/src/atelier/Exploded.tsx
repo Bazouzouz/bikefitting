@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type JSX, type KeyboardEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type JSX, type KeyboardEvent, type PointerEvent } from 'react';
 import { useReducedMotion } from '../motion/useReducedMotion';
-import { fitBounds, gestureArc, paint, projectedBounds, type DrawBox, type Fit, type P2, type PaintItem, type Solid, type Vec3, type View } from './iso';
+import { add3, fitBounds, gestureArc, paint, projectedBounds, type DrawBox, type Fit, type P2, type PaintItem, type Solid, type Vec3, type View } from './iso';
 import type { Gesture } from './saddleParts';
 import '../styles/exploded.css';
 
@@ -16,6 +16,12 @@ export interface ExplodedPart {
   explode: Vec3;
 }
 
+/** État de référence du cadrage : pièces et translations de réglage éventuelles. */
+export interface FrameState<P extends ExplodedPart> {
+  parts: readonly P[];
+  moves?: Readonly<Partial<Record<string, Vec3>>>;
+}
+
 export interface ExplodedProps<P extends ExplodedPart> {
   parts: P[];
   /** Pièces à manipuler au temps en cours (la première est la pièce clé : libellé du geste). */
@@ -29,6 +35,18 @@ export interface ExplodedProps<P extends ExplodedPart> {
   title: string;
   /** Début de la description accessible, ex. « de la tige de selle » ou « du cockpit (potence, entretoises, cintre) ». */
   subject: string;
+  /** Translation de réglage par pièce (mm, repère local), en vue assemblée comme éclatée (s'ajoute à `explode`). */
+  moves?: Readonly<Partial<Record<string, Vec3>>>;
+  /** Dessin seul (minimap) : ni libellés, ni lignes de rappel, ni barre de rotation ; le dessin prend toute la largeur. */
+  compact?: boolean;
+  /** Réglage animé de l'extérieur (rAF) : pas de transition CSS sur les pièces (bascule Éclater / Assembler animée en JS, voir OPEN_TOGGLE_MS). */
+  adjusting?: boolean;
+  /**
+   * États de référence du cadrage et de l'ordre des libellés (le premier), d'identité stable (mémoïsés par le parent) :
+   * ex. début et fin du réglage. Le cadrage ne suit alors pas `parts`/`moves` à chaque image (pas de zoom ni de saut).
+   * Absent : `[{ parts }]`.
+   */
+  frameStates?: readonly FrameState<P>[];
 }
 
 /** Vue par défaut : 3/4 avant-droit. */
@@ -42,6 +60,16 @@ const DRAG_DEG_PER_PX = 0.4;
 const OPEN_MS = 700;
 const STAGGER_MS = 40;
 const ROTATE_MS = 260;
+/**
+ * Durée maximale (ms) d'une bascule Éclater / Assembler animée en JS (compact ou réglage animé) : ouverture + décalage
+ * de 10 pièces au plus (au-delà, le décalage est resserré pour tenir dans cette durée). La minimap met sa boucle en
+ * pause pendant ce temps.
+ */
+export const OPEN_TOGGLE_MS = OPEN_MS + STAGGER_MS * 10;
+const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+/** Ouverture en cours par pièce (0 : assemblé, 1 : éclaté). */
+type OpenAmount = Record<string, number>;
 
 /*
  * Cadre du dessin (unités du viewBox ; ratio constant). À 390 px la scène fait ≈ 320 px de large : 1 unité ≈ 1 px,
@@ -54,6 +82,8 @@ const VB_W = 320;
  */
 const VB_H = 420;
 const DRAW = { x0: 6, x1: 192, y0: 12, y1: VB_H - 12 };
+/** Zone de dessin sans colonne de libellés (compact) : toute la largeur. */
+const DRAW_COMPACT = { ...DRAW, x1: VB_W - 6 };
 const VB_H_STEP = 40;
 /** Écart de référence entre libellés pour dimensionner la hauteur. */
 const GAP_REF = 10;
@@ -79,7 +109,8 @@ export interface FrameLayout {
  * bornes) et la colonne de libellés (`labelLines` lignes, `nParts` blocs) ; ratio constant, pas de saut de mise en page.
  * `pts` : points de toutes les pièces, fermées ET éclatées (pas de changement d'échelle à l'ouverture).
  */
-export function frameLayout(pts: readonly Vec3[], labelLines: number, nParts: number): FrameLayout {
+export function frameLayout(pts: readonly Vec3[], labelLines: number, nParts: number, compact = false): FrameLayout {
+  const draw = compact ? DRAW_COMPACT : DRAW;
   let b = projectedBounds(pts, DEFAULT_VIEW);
   for (let a = DEFAULT_VIEW.az - AZ_RANGE; a <= DEFAULT_VIEW.az + AZ_RANGE; a += 5) {
     const q = projectedBounds(pts, { az: a, el: DEFAULT_VIEW.el });
@@ -91,12 +122,12 @@ export function frameLayout(pts: readonly Vec3[], labelLines: number, nParts: nu
     };
   }
   const h = b.maxY - b.minY + 2 * MARGIN;
-  const k = fitBounds(b, DRAW, MARGIN).k;
-  // Hauteur : dessin ou colonne de libellés, la plus grande des deux.
-  const colH = labelLines * LINE_H + (nParts - 1) * GAP_REF;
+  const k = fitBounds(b, draw, MARGIN).k;
+  // Hauteur : dessin ou colonne de libellés (absente en compact), la plus grande des deux.
+  const colH = compact ? 0 : labelLines * LINE_H + (nParts - 1) * GAP_REF;
   const vbH = Math.min(VB_H, Math.ceil((Math.max(h * k, colH) + DRAW.y0 + (VB_H - DRAW.y1)) / VB_H_STEP) * VB_H_STEP);
   const y1 = vbH - (VB_H - DRAW.y1);
-  const box = { x0: DRAW.x0, x1: DRAW.x1, y0: DRAW.y0, y1 };
+  const box = { x0: draw.x0, x1: draw.x1, y0: draw.y0, y1 };
   // Plafond : échelle de la vue par défaut (le dessin ne grossit pas quand on tourne vers un profil plus étroit).
   return { vbH, y1, box, kMax: fitBounds(projectedBounds(pts, DEFAULT_VIEW), box, MARGIN).k };
 }
@@ -109,8 +140,38 @@ export function frameAt(layout: FrameLayout, pts: readonly Vec3[], az: number): 
   return fitBounds(projectedBounds(pts, { az, el: DEFAULT_VIEW.el }), layout.box, MARGIN, layout.kMax);
 }
 
+/** Ratio l/h borné du viewBox compact : hauteur de fenêtre stable (ni bandeau trop plat, ni colonne trop haute). */
+const COMPACT_RATIO = [0.8, 1.4] as const;
+/** Part de la zone occupée par le dessin en compact (le reste : marge égale de chaque côté). */
+const COMPACT_FILL = 0.85;
+/** Marge (mm) autour du dessin en compact : juste la flèche de geste. */
+const COMPACT_MARGIN = 6;
+
+/**
+ * Cadre compact : le viewBox épouse le ratio du dessin assemblé (vue par défaut, `closedPts` = début et fin du
+ * réglage), borné par COMPACT_RATIO, et le dessin y occupe COMPACT_FILL. Ne dépend ni de l'azimut ni de `open`.
+ */
+export function compactLayout(closedPts: readonly Vec3[]): FrameLayout {
+  const b = projectedBounds(closedPts, DEFAULT_VIEW);
+  const r = (b.maxX - b.minX + 2 * COMPACT_MARGIN) / (b.maxY - b.minY + 2 * COMPACT_MARGIN);
+  const ratio = Math.min(COMPACT_RATIO[1], Math.max(COMPACT_RATIO[0], r));
+  const vbH = Math.round(VB_W / ratio / 10) * 10;
+  const px = (VB_W * (1 - COMPACT_FILL)) / 2;
+  const py = (vbH * (1 - COMPACT_FILL)) / 2;
+  const box = { x0: px, x1: VB_W - px, y0: py, y1: vbH - py };
+  return { vbH, y1: box.y1, box, kMax: Infinity };
+}
+
+/** Cadrage compact à l'azimut `az` sur les points de l'état affiché (assemblé ou éclaté) : serré, sans plafond. */
+export function compactFrameAt(layout: FrameLayout, pts: readonly Vec3[], az: number): Fit {
+  return fitBounds(projectedBounds(pts, { az, el: DEFAULT_VIEW.el }), layout.box, COMPACT_MARGIN);
+}
+
+const COMPACT_NO_FIT: Fit = { k: 1, ox: 0, oy: 0 };
 const clampAz = (az: number) => Math.min(DEFAULT_VIEW.az + AZ_RANGE, Math.max(DEFAULT_VIEW.az - AZ_RANGE, az));
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString();
+/** Somme de deux décalages facultatifs. */
+const plus = (a?: Vec3, b?: Vec3): Vec3 | undefined => (a && b ? add3(a, b) : (a ?? b));
 
 /** Lignes ajoutées sous le libellé de la pièce clé (geste). */
 const GESTURE_LINES = ['↳ serrer, lire', 'la valeur gravée'];
@@ -166,7 +227,19 @@ function evenColumn(items: { h: number; pivot: number; want: number }[], top: nu
  * Pièces écartées le long de leur axe ; pièces clés du temps en orange, flèche du sens de serrage.
  * Glisser horizontal, ← → ou boutons : rotation de ±40° ; double-clic : vue par défaut.
  */
-export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points, open, title, subject }: ExplodedProps<P>): JSX.Element {
+export function Exploded<P extends ExplodedPart>({
+  parts,
+  keys,
+  gesture,
+  points,
+  open,
+  title,
+  subject,
+  moves,
+  compact = false,
+  adjusting = false,
+  frameStates,
+}: ExplodedProps<P>): JSX.Element {
   const reduce = useReducedMotion();
   const uid = useId();
   const isKey = (id: string) => keys.includes(id);
@@ -263,8 +336,55 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
     lastOpen.current = open;
     toggled.current = true;
   }
-  const settleMs = OPEN_MS + STAGGER_MS * (parts.length - 1);
+  /*
+   * Bascule animée en JS (rAF) en compact ou pendant un réglage animé : la transition CSS n'y convient pas (cadrage
+   * recalculé à chaque image en compact, translations relancées à chaque image du réglage). Chaque pièce s'ouvre
+   * avec le même easing et le même décalage que la transition CSS ; en compact, le cadrage suit (voir plus bas).
+   */
+  const jsToggle = (compact || adjusting) && !reduce;
+  const stagger = jsToggle && parts.length > 1 ? Math.min(STAGGER_MS, (OPEN_TOGGLE_MS - OPEN_MS) / (parts.length - 1)) : STAGGER_MS;
+  const settleMs = OPEN_MS + stagger * (parts.length - 1);
+  const [amount, setAmount] = useState<OpenAmount | null>(null);
+  const amountRef = useRef(amount);
+  amountRef.current = amount;
+  const partsRef = useRef(parts);
+  partsRef.current = parts;
+  const prevOpen = useRef(open);
+  // Avant affichage : pas d'image de l'état final au clic.
+  useLayoutEffect(() => {
+    if (prevOpen.current === open) return;
+    prevOpen.current = open;
+    if (!jsToggle) {
+      setAmount(null);
+      return;
+    }
+    const target = open ? 1 : 0;
+    // Départ : état en cours (bascule interrompue) ou état opposé.
+    const start: OpenAmount = amountRef.current ?? Object.fromEntries(partsRef.current.map((p) => [p.id, 1 - target]));
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const el = now - t0;
+      if (el >= settleMs) {
+        setAmount(null);
+        return;
+      }
+      const next: OpenAmount = {};
+      partsRef.current.forEach((p, i) => {
+        const a = start[p.id] ?? 1 - target;
+        next[p.id] = a + (target - a) * easeOutCubic(clamp01((el - i * stagger) / OPEN_MS));
+      });
+      setAmount(next);
+      raf = requestAnimationFrame(tick);
+    };
+    setAmount(start);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // Seule la bascule relance l'animation (pièces lues par ref, durée figée au clic).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   useEffect(() => {
+    // Mouvement réduit : bascule instantanée, le tri suit tout de suite.
     if (reduce) {
       setSortOpen(open);
       return;
@@ -273,15 +393,61 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
     return () => window.clearTimeout(t);
   }, [open, reduce, settleMs]);
 
-  /* ---------- Cadrage : viewBox fixe (union sur le débattement, ouvert et fermé), dessin recadré à l'azimut ---------- */
-  const allPts = useMemo(() => parts.flatMap((p) => [...points(p, false), ...points(p, true)]), [parts]);
+  /*
+   * ---------- Cadrage : viewBox fixe (union sur le débattement, ouvert et fermé, et sur les états de référence),
+   * dessin recadré à l'azimut ----------
+   */
+  const ownStates = useMemo(() => [{ parts }], [parts]);
+  const states: readonly FrameState<P>[] = frameStates ?? ownStates;
+  const refParts = states[0]?.parts ?? parts;
+  // Points par pièce et par état (translations de réglage incluses) : assemblé (c) et éclaté (o), même ordre de points.
+  const piecePts = useMemo(
+    () =>
+      states.flatMap((s) =>
+        s.parts.map((p) => {
+          const m = s.moves?.[p.id];
+          const at = (o: boolean) => (m ? points(p, o).map((q) => add3(q, m)) : points(p, o));
+          return { id: p.id, c: at(false), o: at(true) };
+        }),
+      ),
+    [states],
+  );
+  const closedPts = useMemo(() => piecePts.flatMap((q) => q.c), [piecePts]);
+  const openPts = useMemo(() => piecePts.flatMap((q) => q.o), [piecePts]);
+  // Cadrage normal : fermé ET éclaté (pas de changement d'échelle à l'ouverture). Compact : état affiché seul.
+  const allPts = useMemo(() => (compact ? closedPts : [...closedPts, ...openPts]), [closedPts, openPts, compact]);
   const layout = useMemo(
     // Colonne de libellés avec les lignes du geste.
-    () => frameLayout(allPts, parts.reduce((a, p) => a + p.label.length, GESTURE_LINES.length), parts.length),
-    [allPts, parts],
+    () =>
+      compact
+        ? compactLayout(closedPts)
+        : frameLayout(allPts, refParts.reduce((a, p) => a + p.label.length, GESTURE_LINES.length), refParts.length),
+    [allPts, closedPts, refParts, compact],
   );
-  const frame = useMemo(() => ({ ...layout, ...frameAt(layout, allPts, az) }), [layout, allPts, az]);
-  const homeFrame = useMemo(() => frameAt(layout, allPts, DEFAULT_VIEW.az), [layout, allPts]);
+  /*
+   * Compact : cadrage serré sur l'état affiché (viewBox commun : compactLayout ne dépend pas de `open`). Pendant la
+   * bascule, il suit la position courante des pièces (même easing et même décalage) : passage continu du cadrage
+   * assemblé au cadrage éclaté, sans saut d'échelle ni pièce qui sorte du cadre en cours de route.
+   */
+  const frame = useMemo(() => {
+    if (!compact) return { ...layout, ...frameAt(layout, allPts, az) };
+    let pts: readonly Vec3[];
+    if (amount) {
+      const cur: Vec3[] = [];
+      for (const q of piecePts) {
+        const m = amount[q.id] ?? (open ? 1 : 0);
+        q.c.forEach((a, i) => {
+          const b = q.o[i] ?? a;
+          cur.push([a[0] + (b[0] - a[0]) * m, a[1] + (b[1] - a[1]) * m, a[2] + (b[2] - a[2]) * m]);
+        });
+      }
+      pts = cur;
+    } else pts = open ? openPts : closedPts;
+    return { ...layout, ...compactFrameAt(layout, pts, az) };
+  }, [layout, allPts, az, compact, amount, piecePts, open, openPts, closedPts]);
+  // Inutilisé en compact (pas de libellés).
+  const frame0: Fit = COMPACT_NO_FIT;
+  const homeFrame = useMemo(() => (compact ? frame0 : frameAt(layout, allPts, DEFAULT_VIEW.az)), [layout, allPts, compact]);
   const toX = (f: Fit, p: P2) => f.ox + p.x * f.k;
   const toY = (f: Fit, p: P2) => f.oy - p.y * f.k;
   const X = (p: P2) => toX(frame, p);
@@ -289,28 +455,43 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
 
   /* ---------- Scène : recalculée seulement quand l'azimut change (rAF pendant la rotation) ---------- */
   const view: View = useMemo(() => ({ az, el: DEFAULT_VIEW.el }), [az]);
+  // Tri peintre et translations : écart d'éclaté (si ouvert) + réglage, projetés par le même mécanisme.
   const scene = useMemo(
-    () => paint(parts.map((p) => ({ id: p.id, solid: p.solid, offset: sortOpen ? p.explode : undefined })), view),
-    [parts, view, sortOpen],
+    () => paint(parts.map((p) => ({ id: p.id, solid: p.solid, offset: plus(sortOpen ? p.explode : undefined, moves?.[p.id]) })), view),
+    [parts, view, sortOpen, moves],
   );
-  const offsets = useMemo(
-    () => paint(parts.map((p) => ({ id: p.id, solid: { faces: [] }, offset: p.explode })), view).offsets,
-    [parts, view],
+  const offsetsAt = useCallback(
+    (o: boolean) => paint(parts.map((p) => ({ id: p.id, solid: { faces: [] }, offset: plus(o ? p.explode : undefined, moves?.[p.id]) })), view).offsets,
+    [parts, view, moves],
   );
+  const offsets = useMemo(() => {
+    if (!amount) return offsetsAt(open);
+    // Bascule JS : projection linéaire, l'écart projeté s'interpole entre assemblé et éclaté (réglage inclus des deux côtés).
+    const c = offsetsAt(false);
+    const o = offsetsAt(true);
+    const out: Record<string, P2> = {};
+    for (const id of Object.keys(o)) {
+      const a = c[id] ?? { x: 0, y: 0 };
+      const b = o[id]!;
+      const m = amount[id] ?? (open ? 1 : 0);
+      out[id] = { x: a.x + (b.x - a.x) * m, y: a.y + (b.y - a.y) * m };
+    }
+    return out;
+  }, [offsetsAt, open, amount]);
   const shift = (id: string) => {
     const o = offsets[id];
-    return open && o ? { dx: o.x * frame.k, dy: -o.y * frame.k } : { dx: 0, dy: 0 };
+    return o ? { dx: o.x * frame.k, dy: -o.y * frame.k } : { dx: 0, dy: 0 };
   };
   const partIndex = useMemo(() => Object.fromEntries(parts.map((p, i) => [p.id, i])), [parts]);
 
-  /* ---------- Libellés : ancre = point visible le plus à droite de chaque pièce, position cible ---------- */
-  const anchorsOf = (items: PaintItem[], offs: Record<string, P2>, isOpen: boolean, f: Fit) => {
+  /* ---------- Libellés : ancre = point visible le plus à droite de chaque pièce (décalage projeté), position cible ---------- */
+  const anchorsOf = (items: PaintItem[], offs: Record<string, P2>, f: Fit) => {
     const anchors: Record<string, { x: number; y: number }> = {};
     for (const it of items) {
       if (it.kind !== 'face') continue;
       const o = offs[it.part];
-      const dx = isOpen && o ? o.x : 0;
-      const dy = isOpen && o ? o.y : 0;
+      const dx = o ? o.x : 0;
+      const dy = o ? o.y : 0;
       for (const p of it.pts) {
         const sx = toX(f, { x: p.x + dx, y: p.y + dy });
         const cur = anchors[it.part];
@@ -321,11 +502,14 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
   };
   // Ordre de la colonne, figé (pas de permutation pendant la rotation) : hauteur des ancres en vue par défaut
   // éclatée (cadrage de la vue par défaut), puis déplacements qui réduisent les croisements de lignes de rappel.
+  // Calculé sur le premier état de référence : ne suit pas un réglage animé. Inutile en compact.
+  const key0 = keys[0];
   const labelOrder = useMemo(() => {
-    const r = paint(parts.map((p) => ({ id: p.id, solid: p.solid, offset: p.explode })), DEFAULT_VIEW);
-    const a = anchorsOf(r.items, r.offsets, true, homeFrame);
-    const order = [...parts].sort((p, q) => (a[p.id]?.y ?? 0) - (a[q.id]?.y ?? 0));
-    const nLines = (p: P) => p.label.length + (p.id === keys[0] ? GESTURE_LINES.length : 0);
+    if (compact) return refParts.map((p) => p.id);
+    const r = paint(refParts.map((p) => ({ id: p.id, solid: p.solid, offset: p.explode })), DEFAULT_VIEW);
+    const a = anchorsOf(r.items, r.offsets, homeFrame);
+    const order = [...refParts].sort((p, q) => (a[p.id]?.y ?? 0) - (a[q.id]?.y ?? 0));
+    const nLines = (p: P) => p.label.length + (p.id === key0 ? GESTURE_LINES.length : 0);
     const leads = () => {
       const tops = evenColumn(
         order.map((p) => ({ h: nLines(p) * LINE_H, pivot: leadY(p.label.length), want: a[p.id]?.y ?? 0 })),
@@ -369,14 +553,16 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
     }
     order.splice(0, order.length, ...best.order);
     return order.map((p) => p.id);
-  }, [parts, homeFrame, layout.y1, keys]);
+  }, [refParts, homeFrame, layout.y1, key0, compact]);
   const labels = useMemo(() => {
-    const anchors = anchorsOf(scene.items, offsets, open, frame);
+    if (compact) return [];
+    const anchors = anchorsOf(scene.items, offsets, frame);
     const byId = Object.fromEntries(parts.map((p) => [p.id, p]));
-    const list = labelOrder.map((id) => {
-      const p = byId[id]!;
+    const list = labelOrder.flatMap((id) => {
+      const p = byId[id];
+      if (!p) return [];
       const lines = isKey(p.id) && p.id === keys[0] ? [...p.label, ...GESTURE_LINES] : p.label;
-      return { part: p, lines, anchor: anchors[p.id] ?? { x: DRAW.x1, y: frame.vbH / 2 } };
+      return [{ part: p, lines, anchor: anchors[p.id] ?? { x: DRAW.x1, y: frame.vbH / 2 } }];
     });
     const tops = evenColumn(
       list.map((l) => ({ h: l.lines.length * LINE_H, pivot: leadY(l.part.label.length), want: l.anchor.y })),
@@ -384,7 +570,7 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
       frame.y1,
     );
     return list.map((l, i) => ({ ...l, top: tops[i]! }));
-  }, [scene, offsets, open, frame, parts, keys, labelOrder]);
+  }, [scene, offsets, frame, parts, keys, labelOrder, compact]);
 
   /* ---------- Flèche de geste (repère de la pièce qui porte la vis) ---------- */
   const arrow = useMemo(() => {
@@ -420,7 +606,12 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
   const seg = (e: [P2, P2][]) => e.map(([a, b]) => `M${f1(X(a))} ${f1(Y(a))}L${f1(X(b))} ${f1(Y(b))}`).join('');
 
   return (
-    <figure className={`xp${rotating ? ' is-rotating' : ''}${open ? ' is-open' : ''}`}>
+    <figure
+      className={
+        // Réglage animé : translations directes (une transition relancée à chaque image figerait les pièces).
+        `xp${rotating ? ' is-rotating' : ''}${open ? ' is-open' : ''}${compact ? ' is-compact' : ''}${adjusting ? ' is-adjusting' : ''}${amount ? ' is-toggling' : ''}`
+      }
+    >
       <div
         className="xp-stage"
         tabIndex={0}
@@ -471,54 +662,60 @@ export function Exploded<P extends ExplodedPart>({ parts, keys, gesture, points,
             </g>
           </g>
 
-          <g key={open ? 'o' : 'c'} className="xp-leaders" style={{ ['--delay' as string]: `${toggled.current ? settleMs : 0}ms` }}>
-            {labels.map((l) => {
-              const midY = l.top + leadY(l.part.label.length);
-              const key = isKey(l.part.id);
-              const d = `M${f1(l.anchor.x + 2)} ${f1(l.anchor.y)}L${f1(COL_X - 6)} ${f1(midY)}L${f1(COL_X - 2)} ${f1(midY)}`;
-              return (
-                <g key={l.part.id}>
-                  <path className="xp-lead-case" d={d} />
-                  <path className={`xp-lead${key ? ' is-key' : ''}`} d={d} />
-                </g>
-              );
-            })}
-            {labels.map((l) => (
-              <circle key={l.part.id} className={`xp-dot${isKey(l.part.id) ? ' is-key' : ''}`} cx={l.anchor.x + 2} cy={l.anchor.y} r={1.6} />
-            ))}
-          </g>
+          {!compact && (
+            <g key={open ? 'o' : 'c'} className="xp-leaders" style={{ ['--delay' as string]: `${toggled.current ? settleMs : 0}ms` }}>
+              {labels.map((l) => {
+                const midY = l.top + leadY(l.part.label.length);
+                const key = isKey(l.part.id);
+                const d = `M${f1(l.anchor.x + 2)} ${f1(l.anchor.y)}L${f1(COL_X - 6)} ${f1(midY)}L${f1(COL_X - 2)} ${f1(midY)}`;
+                return (
+                  <g key={l.part.id}>
+                    <path className="xp-lead-case" d={d} />
+                    <path className={`xp-lead${key ? ' is-key' : ''}`} d={d} />
+                  </g>
+                );
+              })}
+              {labels.map((l) => (
+                <circle key={l.part.id} className={`xp-dot${isKey(l.part.id) ? ' is-key' : ''}`} cx={l.anchor.x + 2} cy={l.anchor.y} r={1.6} />
+              ))}
+            </g>
+          )}
 
-          <g className="xp-labels" aria-hidden="true">
-            {labels.map((l) => {
-              const key = isKey(l.part.id);
-              return (
-                <text key={l.part.id} className={`xp-lbl${key ? ' is-key' : ''}`} x={COL_X} y={l.top + FS} fontSize={FS}>
-                  {l.lines.map((s, i) => (
-                    <tspan key={i} x={COL_X} dy={i === 0 ? 0 : LINE_H} className={i >= l.part.label.length ? 'xp-note' : undefined}>
-                      {s}
-                    </tspan>
-                  ))}
-                </text>
-              );
-            })}
-          </g>
+          {!compact && (
+            <g className="xp-labels" aria-hidden="true">
+              {labels.map((l) => {
+                const key = isKey(l.part.id);
+                return (
+                  <text key={l.part.id} className={`xp-lbl${key ? ' is-key' : ''}`} x={COL_X} y={l.top + FS} fontSize={FS}>
+                    {l.lines.map((s, i) => (
+                      <tspan key={i} x={COL_X} dy={i === 0 ? 0 : LINE_H} className={i >= l.part.label.length ? 'xp-note' : undefined}>
+                        {s}
+                      </tspan>
+                    ))}
+                  </text>
+                );
+              })}
+            </g>
+          )}
         </svg>
       </div>
 
-      <figcaption className="xp-bar">
-        <button type="button" className="xp-btn" onClick={() => rotateTo(targetAz.current + AZ_STEP)} disabled={az >= DEFAULT_VIEW.az + AZ_RANGE - 0.01} aria-label="Tourner la vue vers la gauche de 10°">
-          ↶
-        </button>
-        <button type="button" className="xp-btn xp-reset" onClick={() => rotateTo(DEFAULT_VIEW.az)} aria-label="Revenir à la vue 3/4 avant-droit">
-          3/4
-        </button>
-        <button type="button" className="xp-btn" onClick={() => rotateTo(targetAz.current - AZ_STEP)} disabled={az <= DEFAULT_VIEW.az - AZ_RANGE + 0.01} aria-label="Tourner la vue vers la droite de 10°">
-          ↷
-        </button>
-        <span className="xp-az">
-          az {Math.round(az)}°
-        </span>
-      </figcaption>
+      {!compact && (
+        <figcaption className="xp-bar">
+          <button type="button" className="xp-btn" onClick={() => rotateTo(targetAz.current + AZ_STEP)} disabled={az >= DEFAULT_VIEW.az + AZ_RANGE - 0.01} aria-label="Tourner la vue vers la gauche de 10°">
+            ↶
+          </button>
+          <button type="button" className="xp-btn xp-reset" onClick={() => rotateTo(DEFAULT_VIEW.az)} aria-label="Revenir à la vue 3/4 avant-droit">
+            3/4
+          </button>
+          <button type="button" className="xp-btn" onClick={() => rotateTo(targetAz.current - AZ_STEP)} disabled={az <= DEFAULT_VIEW.az - AZ_RANGE + 0.01} aria-label="Tourner la vue vers la droite de 10°">
+            ↷
+          </button>
+          <span className="xp-az">
+            az {Math.round(az)}°
+          </span>
+        </figcaption>
+      )}
     </figure>
   );
 }

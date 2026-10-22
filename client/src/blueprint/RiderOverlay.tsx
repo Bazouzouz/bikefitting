@@ -24,8 +24,11 @@ function arc(c: Pt, p1: Pt, p2: Pt, r: number): { d: string; label: Pt } {
 
 const poly = (...pts: Pt[]) => pathD(pts);
 
+/** Articulation annotée d'un angle. */
+export type AngleKey = 'knee' | 'hip' | 'elbow';
+
 /** Articulations annotées (genou, hanche, coude) et leur arc d'angle. */
-function jointsOf(p: RiderPose) {
+function jointsOf(p: RiderPose): Array<{ c: Pt; p1: Pt; p2: Pt; v: number; k: AngleKey }> {
   return [
     { c: p.knee, p1: p.hip, p2: p.ankle, v: p.angles.knee, k: 'knee' },
     { c: p.hip, p1: p.shoulder, p2: p.knee, v: p.angles.hip, k: 'hip' },
@@ -33,9 +36,22 @@ function jointsOf(p: RiderPose) {
   ];
 }
 
+/** Centres des libellés d'angle, par articulation (cadrage de la caméra). `only` : articulations affichées. */
+export function angleLabels(
+  rider: RiderMeasurements,
+  frame: Frame,
+  setup: Setup,
+  crankAngle: number,
+  only?: readonly AngleKey[],
+): Array<{ k: AngleKey; at: Pt }> {
+  return jointsOf(solveRider(rider, frame, setup, crankAngle))
+    .filter((j) => !only || only.includes(j.k))
+    .map((j) => ({ k: j.k, at: arc(j.c, j.p1, j.p2, 70).label }));
+}
+
 /** Centres des libellés d'angle (pour que les cotes les évitent). */
-export function angleLabelPoints(rider: RiderMeasurements, frame: Frame, setup: Setup, crankAngle: number): Pt[] {
-  return jointsOf(solveRider(rider, frame, setup, crankAngle)).map((j) => arc(j.c, j.p1, j.p2, 70).label);
+export function angleLabelPoints(rider: RiderMeasurements, frame: Frame, setup: Setup, crankAngle: number, only?: readonly AngleKey[]): Pt[] {
+  return angleLabels(rider, frame, setup, crankAngle, only).map((l) => l.at);
 }
 
 /** Squelette du cycliste en vue de côté, animé via crankAngle. */
@@ -45,6 +61,7 @@ export function RiderOverlay({
   setup,
   crankAngle,
   showAngles = true,
+  angles,
   className,
 }: {
   rider: RiderMeasurements;
@@ -52,10 +69,12 @@ export function RiderOverlay({
   setup: Setup;
   crankAngle: number;
   showAngles?: boolean;
+  /** Angles affichés (absent : tous). */
+  angles?: readonly AngleKey[];
   className?: string;
 }) {
   const p = solveRider(rider, frame, setup, crankAngle);
-  const joints = jointsOf(p);
+  const joints = jointsOf(p).filter((j) => !angles || angles.includes(j.k));
   return (
     <g className={className ? `rider ${className}` : 'rider'}>
       <g className="rider-far">

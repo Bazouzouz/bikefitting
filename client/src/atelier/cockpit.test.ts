@@ -28,7 +28,7 @@ import {
   stemLengthOptions,
   type CockpitSim,
 } from './cockpit';
-import { cockpitAssembly } from './cockpitParts';
+import { BAR_HALF, BAR_HALF_MIN, cockpitAssembly, cockpitGeomAt, spacerRings, spacerStack, SPACER_STACK_MM } from './cockpitParts';
 import { gestureSim } from './CockpitGuide';
 
 /** GRVL AF (5 tailles, comme server/data/bikes.json et saddle.test.ts). */
@@ -214,5 +214,108 @@ describe('vue éclatée : pièces du cockpit', () => {
     expect(a4.parts.find((p) => p.id === 'barBolts')!.solid.faces.length).toBe(4 * (16 + 2 + 24 + 2));
     expect(cockpitAssembly(70, 90, -6, 'two-bolt').parts.find((p) => p.id === 'barBolts')!.solid.faces.length).toBe(2 * (16 + 2 + 24 + 2));
     for (const k of ['spacers', 'stem', 'bar'] as const) expect(a4.keys[k]).toContain(a4.gestures[k].part);
+  });
+});
+
+describe('vue éclatée : hauteur d’entretoises et réglage animé', () => {
+  const HTA = 70;
+  const up = [-Math.cos((HTA * Math.PI) / 180), Math.sin((HTA * Math.PI) / 180), 0] as const;
+  const along = (q: readonly number[]) => q[0]! * up[0] + q[1]! * up[1];
+  const span = (a: ReturnType<typeof cockpitAssembly>, id: string) => {
+    const k = a.parts.find((p) => p.id === id)!.solid.faces.flatMap((f) => f.pts.map(along));
+    return { min: Math.min(...k), max: Math.max(...k), n: k.length };
+  };
+  /** Bas du collier de pivot de la potence : sommets à moins de 20 mm (rayon du collier) de l'axe du pivot. */
+  const clampBottom = (a: ReturnType<typeof cockpitAssembly>) => {
+    const pts = a.parts.find((p) => p.id === 'stem')!.solid.faces.flatMap((f) => f.pts);
+    const onAxis = pts.filter((q) => Math.hypot(q[0] - along(q) * up[0], q[1] - along(q) * up[1], q[2]) <= 20 + 1e-6);
+    return Math.min(...onAxis.map(along));
+  };
+  it('pile : bagues de 10 puis 5 mm, arrondie au pas de 5', () => {
+    expect(spacerStack(0)).toEqual([]);
+    expect(spacerStack(5)).toEqual([5]);
+    expect(spacerStack(22)).toEqual([10, 10]);
+    expect(spacerStack(23)).toEqual([10, 10, 5]);
+    expect(spacerStack(40)).toEqual([10, 10, 10, 10]);
+    expect(spacerStack(-5)).toEqual([]);
+  });
+  it('hauteur de pile = valeur demandée, potence posée juste au-dessus, pivot rallongé', () => {
+    for (const h of [5, 15, 30, 40]) {
+      const a = cockpitAssembly(HTA, 90, -6, 'four-bolt', h);
+      const sp = span(a, 'spacers');
+      expect(sp.min).toBeCloseTo(0.4, 6); // petit jour aux joints
+      expect(sp.max).toBeCloseTo(h - 0.4, 6);
+      expect(clampBottom(a)).toBeCloseTo(h, 6);
+      expect(span(a, 'steerer').max).toBeCloseTo(h + 40 - 3, 6);
+      expect(span(a, 'topCap').min).toBeCloseTo(h + 40 + 0.6, 6);
+    }
+    const a0 = cockpitAssembly(HTA, 90, -6, 'four-bolt', 0);
+    expect(a0.parts.find((p) => p.id === 'spacers')!.solid.faces).toEqual([]);
+    expect(clampBottom(a0)).toBeCloseTo(0, 6);
+  });
+  it('sans hauteur : pile d’exemple (25 mm)', () => {
+    expect(SPACER_STACK_MM).toBe(25);
+    expect(cockpitAssembly(HTA, 90, -6, 'four-bolt', 25)).toEqual(cockpitAssembly(HTA, 90, -6, 'four-bolt'));
+  });
+  it('géométrie au temps t : départ + écart · t', () => {
+    const start = { spacers: 20, stemLength: 90, stemAngle: -6 };
+    expect(cockpitGeomAt(start, undefined, 0.5)).toEqual(start);
+    expect(cockpitGeomAt(start, { spacers: -10, stemLength: 10, stemAngle: 12 }, 0.5)).toEqual({ spacers: 15, stemLength: 95, stemAngle: 0 });
+    expect(cockpitGeomAt({ stemLength: 90, stemAngle: -6 }, { spacers: 10 }, 1).spacers).toBe(35);
+    expect(cockpitGeomAt({ stemLength: 90, stemAngle: -6 }, { stemLength: 10 }, 1).spacers).toBeUndefined();
+  });
+  it('pile continue : bagues de 10 / 5 mm + bague en transit contre la potence', () => {
+    expect(spacerRings(20)).toEqual([10, 10]);
+    expect(spacerRings(12.5)).toEqual([10, 2.5]);
+    expect(spacerRings(7, true).map((x) => +x.toFixed(9))).toEqual([2, 5]);
+    expect(spacerRings(-3)).toEqual([]);
+  });
+  it('transfert animé : potence continue et monotone en t, dessous + dessus conservé, pivot constant', () => {
+    const start = { spacers: 20, spacersAbove: 5, stemLength: 90, stemAngle: -6 };
+    for (const dS of [-15, 5]) {
+      let prev: number | undefined;
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40;
+        const g = cockpitGeomAt(start, { spacers: dS }, t);
+        expect(g.spacers! + g.spacersAbove!).toBeCloseTo(25, 9);
+        expect(g.spacersAbove).toBeCloseTo(5 - dS * t, 9);
+        const a = cockpitAssembly(HTA, 90, -6, 'four-bolt', g.spacers, g.spacersAbove);
+        const cb = clampBottom(a);
+        expect(cb).toBeCloseTo(20 + dS * t, 6); // continu : pas de palier de 5 mm
+        if (prev !== undefined) expect(Math.sign(cb - prev) * Math.sign(dS)).toBeGreaterThanOrEqual(0);
+        if (prev !== undefined) expect(Math.abs(cb - prev)).toBeLessThan(Math.abs(dS) / 40 + 1e-6);
+        prev = cb;
+        expect(span(a, 'steerer').max).toBeCloseTo(25 + 40 - 3, 6);
+        expect(span(a, 'topCap').min).toBeCloseTo(25 + 40 + 0.6, 6);
+      }
+    }
+  });
+  it('transfert au-delà du pivot : butée, rien n’est ajouté (comme simWithSpacers)', () => {
+    const g = cockpitGeomAt({ spacers: 20, spacersAbove: 5, stemLength: 90, stemAngle: -6 }, { spacers: 15 }, 1);
+    expect(g).toMatchObject({ spacers: 25, spacersAbove: 0 });
+  });
+  it('entretoises au-dessus : pièce présente si donnée, posée sur le collier, sous le capot', () => {
+    const a = cockpitAssembly(HTA, 90, -6, 'four-bolt', 15, 10);
+    expect(a.keys.spacers).toContain('spacersAbove');
+    const sa = span(a, 'spacersAbove');
+    expect(sa.min).toBeCloseTo(15 + 40 + 0.4, 6);
+    expect(sa.max).toBeCloseTo(15 + 40 + 10 - 0.4, 6);
+    expect(a.parts.find((p) => p.id === 'spacersAbove')!.label).toEqual(['Entretoises', 'au-dessus']);
+    expect(cockpitAssembly(HTA, 90, -6, 'four-bolt', 15, 0).parts.find((p) => p.id === 'spacersAbove')!.solid.faces).toEqual([]);
+    expect(cockpitAssembly(HTA, 90, -6, 'four-bolt', 15).parts.some((p) => p.id === 'spacersAbove')).toBe(false);
+  });
+  it('cintre : tronçon = 2 · BAR_HALF + écart à t = 1, borné au minimum', () => {
+    const barLen = (a: ReturnType<typeof cockpitAssembly>) => {
+      const z = a.parts.find((p) => p.id === 'bar')!.solid.faces.flatMap((f) => f.pts.map((q) => q[2]));
+      return Math.max(...z) - Math.min(...z);
+    };
+    const start = { stemLength: 90, stemAngle: -6, handlebarWidth: 420 };
+    for (const dW of [20, -20]) {
+      const g = cockpitGeomAt(start, { handlebarWidth: dW }, 1);
+      expect(g.handlebarWidth).toBe(420 + dW);
+      expect(barLen(cockpitAssembly(HTA, 90, -6, 'four-bolt', undefined, undefined, g.handlebarWidth! - 420))).toBeCloseTo(2 * BAR_HALF + dW, 6);
+    }
+    expect(barLen(cockpitAssembly(HTA, 90, -6, 'four-bolt', undefined, undefined, -500))).toBeCloseTo(2 * BAR_HALF_MIN, 6);
+    expect(cockpitGeomAt(start, { stemLength: 10 }, 1).handlebarWidth).toBe(420);
   });
 });

@@ -2,7 +2,7 @@ import type { Bike, BikeSize, BikeStyle } from '@bikefit/shared';
 import type { RiderMeasurements } from '../fit/types';
 import { BlueprintSvg, DimLabels, useBlueprint, type Bounds, type Note } from './BlueprintSvg';
 import { BikeBlueprint, DimLines, sideDims } from './BikeBlueprint';
-import { RiderOverlay, angleLabelPoints } from './RiderOverlay';
+import { RiderOverlay, angleLabelPoints, type AngleKey } from './RiderOverlay';
 import { drawingFor, fmtNum, frameGeometry, toFrame, wheelRadius, type Frame, type Setup } from './geometry';
 import { CHAR_EM, type Obstacle } from './labels';
 import { useTweenedScene } from './useTween';
@@ -34,6 +34,8 @@ export interface SideViewProps {
   trace?: boolean;
   traceKey?: string;
   riderClassName?: string;
+  /** Angles du cycliste affichés (absent : tous) ; la scène n'y garde que ceux de la pièce cadrée quand la minimap est ouverte. */
+  riderAngles?: readonly AngleKey[];
   notes?: Note[];
 }
 
@@ -59,6 +61,7 @@ function SideDimsLayer({
   mode,
   rider,
   riderSetup,
+  riderAngles,
   only,
 }: {
   frame: Frame;
@@ -69,6 +72,7 @@ function SideDimsLayer({
   mode: SideDimsMode;
   rider?: RiderMeasurements;
   riderSetup: Setup;
+  riderAngles?: readonly AngleKey[];
   only?: readonly string[];
 }) {
   const ctx = useBlueprint();
@@ -93,7 +97,7 @@ function SideDimsLayer({
     // libellés d'angle du cycliste (« 142° ») : à éviter
     const hw = 2.5 * CHAR_EM * ctx.fs;
     const hh = 0.7 * ctx.fs;
-    for (const p of angleLabelPoints(rider, frame, riderSetup, crankAngle))
+    for (const p of angleLabelPoints(rider, frame, riderSetup, crankAngle, riderAngles))
       obstacles.push({ box: { x0: p.x - hw, x1: p.x + hw, y0: p.y - hh, y1: p.y + hh }, weight: 50 });
   }
   return (
@@ -120,6 +124,7 @@ export function SideView({
   trace = false,
   traceKey,
   riderClassName,
+  riderAngles,
   notes,
 }: SideViewProps) {
   const scene = useTweenedScene(toFrame(size, style), current, target);
@@ -149,7 +154,7 @@ export function SideView({
         <BikeBlueprint frame={scene.frame} wheel={wheel} setup={scene.tgt} variant="phantom" crankAngle={crankAngle} drawing={drawing} />
       )}
       {rider && (
-        <RiderOverlay rider={rider} frame={scene.frame} setup={riderSetup} crankAngle={crankAngle} className={riderClassName} />
+        <RiderOverlay rider={rider} frame={scene.frame} setup={riderSetup} crankAngle={crankAngle} angles={riderAngles} className={riderClassName} />
       )}
       <SideDimsLayer
         frame={scene.frame}
@@ -160,6 +165,7 @@ export function SideView({
         mode={dims}
         rider={rider}
         riderSetup={riderSetup}
+        riderAngles={riderAngles}
         only={dimIds}
       />
     </BlueprintSvg>

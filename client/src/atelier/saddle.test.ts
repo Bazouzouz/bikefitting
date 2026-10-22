@@ -26,6 +26,7 @@ import {
   TILT_RANGE,
   TILT_TARGET,
 } from './saddle';
+import { postUp, saddleAssembly, saddleMoves, saddleTiltAt } from './saddleParts';
 
 /** GRVL AF (5 tailles, tube de selle à 73,5°, comme server/data/bikes.json). */
 const grvl: Bike = {
@@ -230,5 +231,76 @@ describe('fantôme de la scène', () => {
     const o0 = saddleOutline(n, 0);
     const d = (p: { x: number; y: number }) => Math.hypot(p.x - c0.x, p.y - c0.y);
     o.forEach((p, i) => expect(d(p)).toBeCloseTo(d(o0[i]!), 9));
+  });
+});
+
+describe('vue éclatée : réglage animé de la tige de selle', () => {
+  const pts = (a: ReturnType<typeof saddleAssembly>, id: string) => a.parts.find((p) => p.id === id)!.solid.faces.flatMap((f) => f.pts);
+  it('tilt 0 = géométrie sans inclinaison', () => {
+    expect(saddleAssembly(STA, 'two-bolt', 0)).toEqual(saddleAssembly(STA));
+    expect(saddleAssembly(STA, 'one-bolt', 0)).toEqual(saddleAssembly(STA, 'one-bolt'));
+  });
+  it('inclinaison : rails et coque tournés autour du centre du chariot, bec relevé, autres pièces fixes', () => {
+    const a0 = saddleAssembly(STA);
+    const a5 = saddleAssembly(STA, 'two-bolt', 5);
+    const r0 = pts(a0, 'rails');
+    const r5 = pts(a5, 'rails');
+    expect(r5.length).toBe(r0.length);
+    r5.forEach((q, i) => {
+      const p = r0[i]!;
+      expect(Math.hypot(q[0], q[1], q[2])).toBeCloseTo(Math.hypot(p[0], p[1], p[2]), 9);
+      expect(q[2]).toBeCloseTo(p[2], 9);
+    });
+    // bec (x max de la coque) relevé, angle de la rotation = 5°
+    const nose = (a: ReturnType<typeof saddleAssembly>) => pts(a, 'shell').reduce((m, q) => (q[0] > m[0] ? q : m));
+    expect(nose(a5)[1]).toBeGreaterThan(nose(a0)[1]);
+    const marks0 = a0.parts.find((p) => p.id === 'rails')!.solid.marks!;
+    const marks5 = a5.parts.find((p) => p.id === 'rails')!.solid.marks!;
+    const ang = (v: readonly number[]) => Math.atan2(v[1]!, v[0]!);
+    const m0 = marks0.find((m) => m.a[0] > 20)!;
+    const m5 = marks5[marks0.indexOf(m0)]!;
+    expect(((ang(m5.a) - ang(m0.a)) * 180) / Math.PI).toBeCloseTo(5, 9);
+    for (const id of ['upper', 'lower', 'head', 'bolts', 'post', 'collar', 'collarBolt']) expect(pts(a5, id)).toEqual(pts(a0, id));
+  });
+  it('translations par étape : hauteur le long de la tige (sauf collier), recul sur rails et coque, rien pour tilt', () => {
+    const up = postUp(STA);
+    const h = saddleMoves('height', STA, 10, 0.5);
+    expect(Object.keys(h).sort()).toEqual(['bolts', 'head', 'lower', 'post', 'rails', 'shell', 'upper']);
+    expect(h.collar).toBeUndefined();
+    expect(h.collarBolt).toBeUndefined();
+    h.post!.forEach((v, i) => expect(v).toBeCloseTo(up[i]! * 5, 9));
+    expect(h.post![1]).toBeGreaterThan(0); // + = monter
+    expect(saddleMoves('setback', STA, 4, 1)).toEqual({ rails: [-4, 0, 0], shell: [-4, 0, 0] });
+    expect(saddleMoves('setback', STA, 4, 0).rails![0]).toBeCloseTo(0, 9);
+    expect(saddleMoves('tilt', STA, 2, 1)).toEqual({});
+  });
+  it('inclinaison actuelle : appliquée à tous les temps, tilt de from à from + delta', () => {
+    expect(saddleTiltAt('height', -1.5, 4, 0.7)).toBe(-1.5);
+    expect(saddleTiltAt('setback', -1.5, 4, 1)).toBe(-1.5);
+    expect(saddleTiltAt('tilt', -1.5, 4, 0)).toBe(-1.5);
+    expect(saddleTiltAt('tilt', -1.5, 4, 1)).toBeCloseTo(2.5, 9);
+    // angle réel des rails (deux sommets des graduations d'un même rail) = inclinaison demandée
+    const railAngle = (deg: number) => {
+      const m = saddleAssembly(STA, 'two-bolt', deg).parts.find((p) => p.id === 'rails')!.solid.marks!;
+      const m0 = saddleAssembly(STA).parts.find((p) => p.id === 'rails')!.solid.marks!;
+      // graduations de même hauteur (x = ±35) du rail droit : leur ligne est parallèle aux rails
+      const a = m[m0.findIndex((q) => q.a[0] === 35 && q.n[2] > 0)]!;
+      const b = m[m0.findIndex((q) => q.a[0] === -35 && q.n[2] > 0)]!;
+      return (Math.atan2(a.a[1] - b.a[1], a.a[0] - b.a[0]) * 180) / Math.PI;
+    };
+    expect(railAngle(saddleTiltAt('tilt', -1.5, 4, 0))).toBeCloseTo(-1.5, 6);
+    expect(railAngle(saddleTiltAt('tilt', -1.5, 4, 1))).toBeCloseTo(2.5, 6);
+    expect(railAngle(saddleTiltAt('height', -1.5, 4, 1))).toBeCloseTo(-1.5, 6);
+  });
+  it('recul : glissement le long des rails tournés de l’inclinaison actuelle', () => {
+    for (const tilt of [-2, 0, 3]) {
+      const m = saddleMoves('setback', STA, 6, 1, tilt);
+      const v = m.rails!;
+      expect(m.shell).toEqual(v);
+      expect(Math.hypot(v[0], v[1])).toBeCloseTo(6, 9);
+      // sens inverse de la direction des rails (cos, sin)
+      expect((Math.atan2(-v[1], -v[0]) * 180) / Math.PI).toBeCloseTo(tilt, 9);
+    }
+    expect(saddleMoves('setback', STA, 4, 1, 0)).toEqual({ rails: [-4, 0, 0], shell: [-4, 0, 0] });
   });
 });

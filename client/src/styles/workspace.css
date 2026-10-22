@@ -111,6 +111,21 @@
 .ws-rail .row input { flex: 1 1 160px; min-width: 0; }
 .ws-rail details { margin: 0 0 6px; }
 .ws-rail .aids { margin: 0; }
+/* Volets repliables (Réglage actuel, Écarts) : le titre sert de bouton, chevron qui pivote à l'ouverture */
+.ws-fold > summary {
+  list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-height: 44px; padding: 0; color: var(--ink);
+}
+.ws-fold > summary::-webkit-details-marker { display: none; }
+.ws-fold > summary h3 { margin: 0; }
+.ws-fold > summary::after {
+  content: ''; flex: none; width: 8px; height: 8px; margin-right: 4px;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg); transition: transform var(--dur) var(--ease);
+}
+.ws-fold[open] > summary { margin-bottom: 8px; }
+.ws-fold[open] > summary::after { transform: rotate(45deg); }
+.ws-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
 .ws-rail .measure-guide { background: var(--bg-2); }
 .ws-rail .rider-figure svg { max-width: 260px; }
 

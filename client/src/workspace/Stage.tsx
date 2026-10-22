@@ -27,7 +27,8 @@ import { SaddleDims } from '../atelier/SaddleDims';
 import { CockpitDims } from '../atelier/CockpitDims';
 import { setupWithSim } from '../atelier/cockpit';
 import '../styles/cockpit.css';
-import { CAMERA_MS, fsFor, useStageCamera, type ViewBox } from './useStageCamera';
+import { PartMinimap } from './PartMinimap';
+import { CAMERA_MS, anglesFor, fsFor, useStageCamera, type ViewBox } from './useStageCamera';
 import '../styles/stage.css';
 
 export interface StageProps {
@@ -164,6 +165,21 @@ export function Stage({ bike, state, view, showRider, phase }: StageProps): JSX.
   const lastPart = useRef<Part | null>(null);
   const setups = useMemo(() => (ghost ? [current, ghost] : [current]), [current, ghost]);
   const sceneKey = `${view}|${phase}|${bikeKey}|${aspect}`;
+  // Bande droite occupée par la minimap ouverte (fraction de la largeur de la scène), mesurée sur l'élément réel.
+  const [reserveRight, setReserveRight] = useState(0);
+  // Petite scène : aucune réserve (la zone libre, ~230 px, ne tiendrait pas la pièce et ses cotes : le zoom
+  // retomberait presque sur la vue d'ensemble). La minimap y est réduite par défaut et l'utilisateur peut la réduire.
+  const reserve = widthPx < NARROW_PX ? 0 : reserveRight;
+  // Minimap ouverte (réserve active) : seuls les angles du cycliste proches de la pièce restent affichés, et la
+  // caméra les cadre avec elle (les autres tomberaient sous la minimap). Mêmes valeurs que SideView (manivelle à 0).
+  const storeFocus = useStore((s) => s.focus);
+  const riderAngles =
+    view === 'side' && withRider && phase === 'tune' && storeFocus !== 'overview' && reserve > 0 ? anglesFor(storeFocus) : undefined;
+  const riderSetup = ghost ?? current;
+  const camRider = useMemo(
+    () => (view === 'side' && withRider ? { measures: rider, setup: riderSetup, crankAngle: 0, angles: riderAngles } : undefined),
+    [view, withRider, rider, riderSetup, riderAngles],
+  );
   const { focus, zoomTo, viewBox, overview } = useStageCamera({
     host: box,
     bounds,
@@ -174,6 +190,8 @@ export function Stage({ bike, state, view, showRider, phase }: StageProps): JSX.
     widthPx,
     reduce,
     sceneKey,
+    reserveRight: reserve,
+    rider: camRider,
   });
   // Après un dézoom, les hotspots n'apparaissent qu'une fois la caméra revenue : d'ici là, ni cliquables ni focalisables
   // (sauf celui qui reprend le focus). Mouvement réduit : immédiat.
@@ -189,6 +207,38 @@ export function Stage({ bike, state, view, showRider, phase }: StageProps): JSX.
     setHudLate(false); // pas d'apparition retardée des hotspots au retour dans la phase
   }, [phase, bikeKey, setFocus]);
   const zoomed = phase === 'tune' && focus !== 'overview';
+  // Minimap 3D de la pièce zoomée : réduite par défaut sur petit écran tant que l'utilisateur n'a pas choisi.
+  const [mapChoice, setMapChoice] = useState<boolean | null>(null);
+  const mapCollapsed = mapChoice ?? widthPx < NARROW_PX;
+  const minimapPart: 'saddle' | 'cockpit' | null =
+    zoomed && focus === 'saddle' && preview ? 'saddle' : zoomed && focus === 'cockpit' && cpPreview ? 'cockpit' : null;
+  // Mesure de la minimap ouverte : bande réservée = de son bord gauche au bord droit de la scène (marge comprise).
+  const mapOpen = minimapPart !== null && !mapCollapsed;
+  useLayoutEffect(() => {
+    const el = box.current?.querySelector<HTMLElement>('.stage-minimap');
+    if (!mapOpen || !el || !box.current) {
+      setReserveRight(0);
+      return;
+    }
+    const measure = () => {
+      // Agrandie, la minimap couvre toute la scène : rien à réserver (pas de dézoom caché dessous).
+      if (el.classList.contains('is-large')) {
+        setReserveRight(0);
+        return;
+      }
+      const b = box.current!.getBoundingClientRect();
+      const m = el.getBoundingClientRect();
+      if (b.width <= 0) return;
+      const r = Math.round(((b.right - m.left + 8) / b.width) * 100) / 100; // 8 px de respiration
+      setReserveRight(Math.min(Math.max(r, 0), 0.6));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    ro.observe(box.current);
+    return () => ro.disconnect();
+  }, [mapOpen, minimapPart, widthPx]);
   // Parcours selle guidé (vue de côté) : calque selle dans le <svg> du plan (portail), qui suit donc la caméra.
   const guide = zoomed && focus === 'saddle' && view === 'side' && preview ? preview : null;
   // Parcours cockpit guidé (vue de côté) : calque cockpit (simulation, cote du temps, cocottes fantômes), même portail.
@@ -285,6 +335,7 @@ export function Stage({ bike, state, view, showRider, phase }: StageProps): JSX.
             trace={trace}
             traceKey={bikeKey}
             riderClassName="stage-fade-in"
+            riderAngles={riderAngles}
           />
         ) : (
           <TopView
@@ -373,6 +424,15 @@ export function Stage({ bike, state, view, showRider, phase }: StageProps): JSX.
               );
             })}
           </svg>
+        )}
+        {minimapPart && (
+          <PartMinimap
+            part={minimapPart}
+            state={state}
+            frame={frame}
+            collapsed={mapCollapsed}
+            onToggleCollapsed={() => setMapChoice(!mapCollapsed)}
+          />
         )}
         {zoomed && (
           <button ref={backRef} type="button" className="btn small stage-back" onClick={close}>
